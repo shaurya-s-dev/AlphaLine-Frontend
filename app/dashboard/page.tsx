@@ -1,17 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Activity, ShieldAlert, Terminal, LayoutDashboard, Star } from 'lucide-react';
+import { Menu, Activity, ShieldAlert, Terminal, LayoutDashboard, Star, Search, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 import Sidebar from '@/components/Sidebar';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { StatsBar } from '@/components/StatsBar';
 import { SignalCard } from '@/components/SignalCard';
+import { SignalCardSkeleton } from '@/components/SignalCardSkeleton';
 import { SignalDrawer } from '@/components/SignalDrawer';
 import { TickerTape } from '@/components/TickerTape';
+import { MarketCountdown } from '@/components/MarketCountdown';
 import * as Slider from '@radix-ui/react-slider';
 
 const CORE_TICKERS = [
@@ -25,11 +27,39 @@ const CORE_TICKERS = [
   "ORCL", "INTC", "QCOM", "SHOP", "COIN"
 ];
 
+function exportToCSV(signalsToExport: any[]) {
+  const headers = [
+    "Ticker","Market","Signal","Confidence",
+    "Entry","Stop Loss","Target","R:R","Timestamp"
+  ];
+  const rows = signalsToExport.map(s => [
+    s.ticker, s.market, s.signalType, 
+    s.confidence + "%",
+    s.entry, s.stopLoss, s.target,
+    s.riskReward + "x",
+    s.timestamp
+  ]);
+  const csv = [headers, ...rows]
+    .map(row => row.join(","))
+    .join("\n");
+  
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `alphaline-signals-${
+    new Date().toISOString().split("T")[0]
+  }.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [selectedMarket, setSelectedMarket] = useState<'All' | 'NSE' | 'BSE' | 'US'>('All');
   const [minConfidence, setMinConfidence] = useState(50);
+  const [search, setSearch] = useState("");
   
   // Signals data states
   const [signals, setSignals] = useState<any[]>([]);
@@ -42,15 +72,15 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState('N/A');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Market hours status
-  const [marketStatus, setMarketStatus] = useState({ nseOpen: false, usOpen: false });
-
   // Mobile sidebar collapse state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Drawer selected signal state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedSignalForDrawer, setSelectedSignalForDrawer] = useState<any | null>(null);
+
+  // Track previous signals for confidence trend indicator
+  const prevSignalsRef = useRef<Record<string, number>>({});
 
   // Fallback mock signals if API is empty or offline
   const fallbackMockSignals = [
@@ -78,35 +108,6 @@ export default function DashboardPage() {
         setActiveTab('Dashboard');
       }
     }
-  }, []);
-
-  // Market status checker effect
-  useEffect(() => {
-    const checkMarketStatus = () => {
-      const now = new Date();
-      
-      const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-      const istDay = istTime.getDay();
-      const istHour = istTime.getHours();
-      const istMin = istTime.getMinutes();
-      const istMinOfDay = istHour * 60 + istMin;
-      const isNseOpen = (istDay >= 1 && istDay <= 5) && 
-                         (istMinOfDay >= (9 * 60 + 15) && istMinOfDay <= (15 * 60 + 30));
-
-      const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-      const estDay = estTime.getDay();
-      const estHour = estTime.getHours();
-      const estMin = estTime.getMinutes();
-      const estMinOfDay = estHour * 60 + estMin;
-      const isUsOpen = (estDay >= 1 && estDay <= 5) && 
-                        (estMinOfDay >= (9 * 60 + 30) && estMinOfDay <= (16 * 60));
-
-      setMarketStatus({ nseOpen: isNseOpen, usOpen: isUsOpen });
-    };
-
-    checkMarketStatus();
-    const interval = setInterval(checkMarketStatus, 30000);
-    return () => clearInterval(interval);
   }, []);
   
   // Keyboard Navigation shortcut listeners
@@ -164,16 +165,29 @@ export default function DashboardPage() {
       
       const data = await response.json();
       if (data.success && data.signals && data.signals.length > 0) {
+        // Save previous map first before updating
+        const prevMap: Record<string, number> = {};
+        signals.forEach(s => { prevMap[s.ticker] = s.confidence; });
+        prevSignalsRef.current = prevMap;
+
         setSignals(data.signals);
         setIsDemoMode(false);
         setFetchSuccess(true);
       } else {
+        const prevMap: Record<string, number> = {};
+        signals.forEach(s => { prevMap[s.ticker] = s.confidence; });
+        prevSignalsRef.current = prevMap;
+
         setSignals(fallbackMockSignals);
         setIsDemoMode(true);
         setFetchSuccess(false);
       }
     } catch (err: any) {
       console.warn("Signal feed API error, using fallback mock data:", err);
+      const prevMap: Record<string, number> = {};
+      signals.forEach(s => { prevMap[s.ticker] = s.confidence; });
+      prevSignalsRef.current = prevMap;
+
       setSignals(fallbackMockSignals);
       setIsDemoMode(true);
       setFetchSuccess(false);
@@ -243,10 +257,11 @@ export default function DashboardPage() {
     }
   };
 
-  // Confidence slider filters client-side on the returned data
+  // Confidence slider + search filters client-side on the returned data
   const filteredSignals = signals.filter((sig) => {
     const matchesMarket = selectedMarket === 'All' || sig.market === selectedMarket;
-    return matchesMarket && sig.confidence >= minConfidence;
+    const matchesSearch = sig.ticker.toLowerCase().includes(search.toLowerCase());
+    return matchesMarket && matchesSearch && sig.confidence >= minConfidence;
   });
 
   // Calculate dynamic stats
@@ -276,8 +291,8 @@ export default function DashboardPage() {
       {/* Main Content Pane (z-10) */}
       <div className="flex-1 flex flex-col h-full relative z-10 overflow-hidden md:pl-[220px]">
         
-        {/* Upgraded Top Bar Header */}
-        <header className="h-[52px] border-b border-border-dark bg-[#111318]/50 backdrop-blur-md flex items-center justify-between px-6 gap-4 z-20">
+        {/* Upgraded Top Bar Header with Search & Export */}
+        <header className="h-[52px] border-b border-border-dark bg-[#111318]/50 backdrop-blur-md flex items-center justify-between px-6 gap-4 z-20 select-none">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger menu */}
             <button 
@@ -291,34 +306,105 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          {/* TickerTape component in the center */}
-          <div className="flex-1 hidden lg:block max-w-[450px] border border-border-dark rounded-[6px] overflow-hidden">
-            <TickerTape signals={signals} />
+          {/* Search input in the top bar area */}
+          <div className="flex items-center gap-3 flex-1 justify-center max-w-sm hidden md:flex">
+            <div style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+            }}>
+              <Search 
+                size={13} 
+                style={{ 
+                  position: "absolute", 
+                  left: 10, 
+                  color: "#374151",
+                  pointerEvents: "none"
+                }} 
+              />
+              <motion.input
+                type="text"
+                placeholder="Search ticker..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                whileFocus={{ width: 180 }}
+                initial={{ width: 140 }}
+                transition={{ duration: 0.2 }}
+                style={{
+                  background: "#1C1F28",
+                  border: "1px solid #1E2230",
+                  borderRadius: 6,
+                  height: 32,
+                  paddingLeft: 30,
+                  paddingRight: 12,
+                  fontFamily: "var(--font-inter)",
+                  fontSize: 12,
+                  color: "#E2E8F0",
+                  outline: "none",
+                }}
+                onFocus={e => e.target.style.borderColor = "#6366F1"}
+                onBlur={e => e.target.style.borderColor = "#1E2230"}
+              />
+              {search && (
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  onClick={() => setSearch("")}
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    background: "none",
+                    border: "none",
+                    color: "#374151",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    padding: 0,
+                  }}
+                >
+                  &times;
+                </motion.button>
+              )}
+            </div>
           </div>
 
-          {/* Right Area: Market status pills + Live/Demo indicator */}
+          {/* Right Area: Market Status, Export & Indicator */}
           <div className="flex items-center gap-4 select-none">
-            {/* Market Status Pills */}
-            <div className="hidden sm:flex items-center gap-2.5">
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border-dark bg-[#111318]/50">
-                <span 
-                  className="w-2 h-2 rounded-full" 
-                  style={{ backgroundColor: marketStatus.nseOpen ? '#22C55E' : '#374151' }} 
-                />
-                <span className="font-sans font-normal text-[11px] text-[#E2E8F0]">
-                  NSE: {marketStatus.nseOpen ? 'OPEN' : 'CLOSED'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border-dark bg-[#111318]/50">
-                <span 
-                  className="w-2 h-2 rounded-full" 
-                  style={{ backgroundColor: marketStatus.usOpen ? '#22C55E' : '#374151' }} 
-                />
-                <span className="font-sans font-normal text-[11px] text-[#E2E8F0]">
-                  US: {marketStatus.usOpen ? 'OPEN' : 'CLOSED'}
-                </span>
-              </div>
+            {/* Market Countdown */}
+            <div className="hidden xs:block">
+              <MarketCountdown />
             </div>
+
+            {/* Export CSV Button */}
+            <motion.button
+              onClick={() => exportToCSV(signals)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: "transparent",
+                border: "1px solid #1E2230",
+                borderRadius: 6,
+                height: 32,
+                padding: "0 12px",
+                cursor: "pointer",
+                fontFamily: "var(--font-inter)",
+                fontSize: 12,
+                color: "#6B7280",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = "#374151";
+                e.currentTarget.style.color = "#E2E8F0";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = "#1E2230";
+                e.currentTarget.style.color = "#6B7280";
+              }}
+            >
+              <Download size={12} />
+              <span className="hidden sm:inline">Export CSV</span>
+            </motion.button>
 
             {/* LIVE / DEMO Indicator */}
             {isDemoMode ? (
@@ -333,12 +419,17 @@ export default function DashboardPage() {
           </div>
         </header>
 
+        {/* TickerTape banner below header */}
+        <div className="w-full border-b border-border-dark overflow-hidden bg-void/50 z-10 select-none hidden lg:block">
+          <TickerTape signals={signals} />
+        </div>
+
         {/* Scrollable grid content area */}
         <div className="flex-1 overflow-y-auto p-6 pb-24 md:pb-6">
           {activeTab === 'Dashboard' && (
             <div className="space-y-6">
               {/* Header Title Section */}
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 select-none">
                 <h1 className="text-[20px] font-medium text-frost font-sans leading-none flex items-center gap-2">
                   Confluence Signals
                 </h1>
@@ -348,7 +439,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Control Panel: Pill Filters and slider */}
-              <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-6 select-none">
                 
                 {/* Market Filter Pills (with active layoutId slide animation) */}
                 <div className="flex items-center gap-1 bg-void p-1 rounded-[6px] border border-border-dark max-w-max">
@@ -410,17 +501,10 @@ export default function DashboardPage() {
 
               {/* Card List / Grid area */}
               {isLoading ? (
-                /* Shimmer loading layout */
+                /* Mirrored loading skeleton structure */
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div 
-                      key={i} 
-                      className="relative w-full rounded-[6px] bg-surface border border-border-dark p-4 overflow-hidden h-[130px] animate-pulse"
-                    >
-                      <div className="h-4 bg-raised w-20 rounded mb-4" />
-                      <div className="h-2 bg-raised w-full rounded mb-3" />
-                      <div className="h-3 bg-raised w-32 rounded" />
-                    </div>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <SignalCardSkeleton key={i} index={i} />
                   ))}
                 </div>
               ) : filteredSignals.length > 0 ? (
@@ -445,6 +529,7 @@ export default function DashboardPage() {
                       target={signal.target}
                       timestamp={signal.timestamp}
                       index={index}
+                      previousConfidence={prevSignalsRef.current[signal.ticker]}
                       onClick={() => {
                         setSelectedSignalForDrawer(signal);
                         setIsDrawerOpen(true);
@@ -459,8 +544,8 @@ export default function DashboardPage() {
                   animate={{ opacity: 1 }}
                   className="flex items-center justify-center p-12 min-h-[220px] w-full border border-border-dark bg-[#111318]/30 rounded-[6px]"
                 >
-                  <p className="text-[14px] font-sans font-normal text-muted">
-                    No signals match your filters
+                  <p className="text-[13px] font-sans font-normal text-muted text-[#374151]">
+                    {search ? `No signals found for "${search}"` : "No signals match your filters"}
                   </p>
                 </motion.div>
               )}
@@ -470,13 +555,13 @@ export default function DashboardPage() {
           {/* Render Watchlist Tab */}
           {activeTab === 'Watchlist' && (
             <div className="space-y-6">
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 select-none">
                 <h1 className="text-[20px] font-medium text-frost font-sans leading-none">Your Watchlist</h1>
                 <p className="text-[13px] text-muted font-sans font-normal leading-normal">
                   Monitor your selected assets and receive alerts on confluences.
                 </p>
               </div>
-              <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px]">
+              <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px] select-none">
                 <Star className="w-8 h-8 text-dim mx-auto mb-3" />
                 <h3 className="text-[14px] font-medium text-frost mb-1 font-sans">No Watchlist Items</h3>
                 <p className="text-[12px] text-muted font-sans max-w-sm mx-auto">

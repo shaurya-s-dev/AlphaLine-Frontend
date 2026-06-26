@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, LogOut, Menu } from 'lucide-react';
+import { MarketCountdown } from '@/components/MarketCountdown';
 
 export interface SidebarProps {
   activeTab?: string;
@@ -259,20 +260,8 @@ export function Sidebar({
         )}
 
         {/* Market Status */}
-        <div className="px-2 py-3 border-t border-border-dark mb-3 select-none">
-          <div className="flex items-center justify-between text-[11px] font-sans font-normal text-muted">
-            <div className="flex items-center gap-1.5">
-              <span>NSE</span>
-              <span className={`w-[5px] h-[5px] rounded-full ${marketStatus.nseOpen ? 'bg-sig-green animate-pulse' : 'bg-sig-red'}`} />
-              <span className="text-frost">{marketStatus.nseOpen ? 'Open' : 'Closed'}</span>
-            </div>
-            <span className="text-[#1E2230] font-mono">·</span>
-            <div className="flex items-center gap-1.5">
-              <span>US</span>
-              <span className={`w-[5px] h-[5px] rounded-full ${marketStatus.usOpen ? 'bg-sig-green animate-pulse' : 'bg-sig-red'}`} />
-              <span className="text-frost">{marketStatus.usOpen ? 'Open' : 'Closed'}</span>
-            </div>
-          </div>
+        <div className="px-2 py-3 border-t border-border-dark mb-3 select-none flex justify-center">
+          <MarketCountdown />
         </div>
 
         {/* User Card */}

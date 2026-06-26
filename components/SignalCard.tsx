@@ -1,7 +1,24 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+function FlipNumber({ value }: { value: number }) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.span
+        key={value}
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 8 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        style={{ display: "inline-block" }}
+      >
+        {value}
+      </motion.span>
+    </AnimatePresence>
+  );
+}
 
 export interface SignalCardProps {
   ticker: string;
@@ -15,6 +32,7 @@ export interface SignalCardProps {
   isBlurred?: boolean;
   index?: number;
   onClick?: () => void;
+  previousConfidence?: number;
 }
 
 export function SignalCard({
@@ -29,7 +47,10 @@ export function SignalCard({
   isBlurred = false,
   index = 0,
   onClick,
+  previousConfidence,
 }: SignalCardProps) {
+  const [ageSeconds, setAgeSeconds] = useState(0);
+
   // Parse relative timestamp to seconds
   const parseTimestampToSeconds = (ts: string): number => {
     if (!ts) return 0;
@@ -46,8 +67,6 @@ export function SignalCard({
     if (unit.startsWith('day') || unit === 'd') return val * 86400;
     return val;
   };
-
-  const [ageSeconds, setAgeSeconds] = useState(parseTimestampToSeconds(timestamp));
 
   useEffect(() => {
     setAgeSeconds(parseTimestampToSeconds(timestamp));
@@ -87,30 +106,54 @@ export function SignalCard({
   const rewardDistance = Math.abs(target - entry);
   const rrRatio = stopDistance > 0 ? rewardDistance / stopDistance : 2.1;
 
-  const cardVariants = {
-    hidden: { opacity: 0, y: 16 },
-    show: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { 
-        duration: 0.3, 
-        ease: [0.23, 1, 0.32, 1] 
-      } 
-    }
+  // Ripple effect state
+  const [ripples, setRipples] = useState<{x: number, y: number, id: number}[]>([]);
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const id = Date.now();
+    setRipples(prev => [...prev, { x, y, id }]);
+    setTimeout(() => {
+      setRipples(prev => prev.filter(r => r.id !== id));
+    }, 600);
+    onClick?.();
   };
+
+  // Just updated flash effect
+  const [isFlashing, setIsFlashing] = useState(false);
+  const prevConfidenceRef = useRef(confidence);
+
+  useEffect(() => {
+    if (prevConfidenceRef.current !== confidence) {
+      setIsFlashing(true);
+      const timer = setTimeout(() => setIsFlashing(false), 400);
+      prevConfidenceRef.current = confidence;
+      return () => clearTimeout(timer);
+    }
+  }, [confidence]);
 
   return (
     <motion.div
-      variants={cardVariants}
-      initial="hidden"
-      animate="show"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ 
+        opacity: 1, 
+        y: 0,
+        boxShadow: isFlashing 
+          ? `0 0 0 1.5px ${signalColor}` 
+          : "0 0 0 0px transparent",
+        borderLeftColor: signalColor,
+      }}
+      transition={{ duration: 0.4, delay: index * 0.05, ease: "easeOut" }}
       whileHover={isBlurred ? {} : { y: -2, transition: { duration: 0.2 } }}
-      onClick={isBlurred ? undefined : onClick}
+      onClick={isBlurred ? undefined : handleClick}
       className={`relative w-full rounded-[6px] bg-surface border border-border-dark overflow-hidden ${
         isBlurred ? '' : 'cursor-pointer'
       }`}
       style={{
-        borderLeft: `3px solid ${signalColor}`,
+        borderLeftWidth: '3px',
+        borderLeftStyle: 'solid',
       }}
     >
       {/* Shimmer Effect on Hover */}
@@ -155,8 +198,27 @@ export function SignalCard({
                 style={{ background: signalColor }}
               />
             )}
-            <span className="font-mono text-[13px] font-medium leading-none">{confidence}%</span>
-            <span className="text-[11px] leading-none">·</span>
+            <span className="font-mono text-[13px] font-medium leading-none flex items-center">
+              <FlipNumber value={confidence} />%
+              {previousConfidence !== undefined && 
+               previousConfidence !== confidence && (
+                <motion.span
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  style={{
+                    fontFamily: "var(--font-jetbrains-mono)",
+                    fontSize: 10,
+                    marginLeft: 4,
+                    color: confidence > previousConfidence 
+                      ? "#22C55E" : "#EF4444",
+                  }}
+                >
+                  {confidence > previousConfidence ? "▲" : "▼"}
+                  {Math.abs(confidence - previousConfidence)}
+                </motion.span>
+              )}
+            </span>
+            <span className="text-[11px] leading-none">&middot;</span>
             <span className="text-[11px] font-medium uppercase tracking-widest leading-none">{signalType}</span>
           </div>
         </div>
@@ -222,6 +284,31 @@ export function SignalCard({
           </button>
         </div>
       )}
+
+      {/* Ripple Effect Animation */}
+      {ripples.map(ripple => (
+        <motion.span
+          key={ripple.id}
+          style={{
+            position: "absolute",
+            left: ripple.x,
+            top: ripple.y,
+            width: 4,
+            height: 4,
+            borderRadius: "50%",
+            background: signalColor,
+            opacity: 0.4,
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+            zIndex: 5,
+          }}
+          animate={{
+            scale: [0, 40],
+            opacity: [0.4, 0],
+          }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        />
+      ))}
     </motion.div>
   );
 }
