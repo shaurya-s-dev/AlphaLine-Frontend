@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import List
 import os
 import boto3
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -87,9 +87,55 @@ class GenerateRequest(BaseModel):
 class BatchGenerateRequest(BaseModel):
     tickers: List[str]
 
+def check_recent_signal_exists(ticker: str) -> bool:
+    """
+    Checks if a signal for the given ticker was already written to DynamoDB
+    with a timestamp (SK) between now and 15 minutes ago.
+    """
+    try:
+        region = os.environ.get("AWS_REGION", "us-east-1")
+        table_name = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
+        
+        dynamodb = boto3.resource("dynamodb", region_name=region)
+        table = dynamodb.Table(table_name)
+        
+        now_dt = datetime.utcnow()
+        fifteen_min_ago_dt = now_dt - timedelta(minutes=15)
+        
+        now_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        fifteen_min_ago_str = fifteen_min_ago_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        
+        pk_val = f"TICKER#{ticker}"
+        sk_start = f"SIGNAL#{fifteen_min_ago_str}"
+        sk_end = f"SIGNAL#{now_str}"
+        
+        from boto3.dynamodb.conditions import Key
+        
+        response = table.query(
+            KeyConditionExpression=Key('PK').eq(pk_val) & Key('SK').between(sk_start, sk_end),
+            Select='COUNT'
+        )
+        
+        count = response.get("Count", 0)
+        return count > 0
+    except Exception as e:
+        print(f"Error checking recent signals for {ticker}: {e}")
+        # If DynamoDB fails, return False to let signal pipeline proceed normally
+        return False
+
 # Core pipeline
 def run_pipeline_for_ticker(ticker: str) -> dict:
     try:
+        # Check for duplicate signals within last 15 minutes
+        if check_recent_signal_exists(ticker):
+            print(f"Deduplication check: Signal for {ticker} already generated in the last 15 minutes. Skipping.")
+            return {
+                "success": True,
+                "ticker": ticker,
+                "message": "Signal recently generated. Generation skipped.",
+                "skipped": True
+            }
+
         df = fetch_ohlcv(ticker, period="1mo", interval="15m")
         features = compute_features(df, ticker)
         signal = generate_signal(ticker, features)
@@ -101,6 +147,7 @@ def run_pipeline_for_ticker(ticker: str) -> dict:
         return {
             "success": True,
             "ticker": ticker,
+            "skipped": False,
             "signal": {
                 "market": signal.market,
                 "signal_type": signal.signal_type,

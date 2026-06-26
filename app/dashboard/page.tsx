@@ -18,7 +18,7 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   
   // Real-time states
-  const [wsStatus, setWsStatus] = useState<'connected' | 'reconnecting'>('reconnecting');
+  const [fetchSuccess, setFetchSuccess] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Risk Calculator State
@@ -78,7 +78,8 @@ export function DashboardPage() {
       }
       setError(null);
       
-      const response = await fetch(`/api/signals?market=${market}`);
+      const marketParam = market.toLowerCase() === 'all' ? 'all' : market;
+      const response = await fetch(`/api/signals?market=${marketParam}`);
       if (!response.ok) {
         throw new Error("Signal feed unavailable");
       }
@@ -87,108 +88,34 @@ export function DashboardPage() {
       if (data.success && data.signals && data.signals.length > 0) {
         setSignals(data.signals);
         setIsDemoMode(false);
+        setFetchSuccess(true);
       } else {
         setSignals(fallbackMockSignals);
         setIsDemoMode(true);
+        setFetchSuccess(false);
       }
     } catch (err: any) {
       console.warn("Signal feed API error, using fallback mock data:", err);
       setSignals(fallbackMockSignals);
       setIsDemoMode(true);
+      setFetchSuccess(false);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // WebSocket connection effect (runs once on mount)
-  useEffect(() => {
-    let socket: WebSocket | null = null;
-    let reconnectTimeout: NodeJS.Timeout;
-
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "wss://placeholder-ws-url.execute-api.us-east-1.amazonaws.com/production";
-
-    const connectWS = () => {
-      try {
-        console.log(`Connecting to WebSocket: ${wsUrl}`);
-        socket = new WebSocket(wsUrl);
-
-        socket.onopen = () => {
-          console.log("WebSocket connected successfully");
-          setWsStatus('connected');
-        };
-
-        socket.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data);
-            if (message.type === "SIGNAL_UPDATE" && message.data) {
-              const item = message.data;
-              const ticker = item.PK ? item.PK.replace(/^TICKER#/, "") : "UNKNOWN";
-              
-              const newSignal = {
-                id: item.PK + "_" + item.SK,
-                ticker: ticker,
-                market: item.market || "NSE",
-                signalType: item.signal_type || "BUY",
-                confidence: item.confidence_score ? parseInt(item.confidence_score, 10) : 50,
-                entry: item.entry_price ? parseFloat(item.entry_price) : 0,
-                stopLoss: item.stop_loss ? parseFloat(item.stop_loss) : 0,
-                target: item.target_price ? parseFloat(item.target_price) : 0,
-                timestamp: "Just now",
-                isNew: true, // Used for slide-in animation class
-              };
-
-              setSignals((prev) => {
-                const filtered = prev.filter(s => !s.id.startsWith('mock_'));
-                setIsDemoMode(false);
-                if (filtered.some((s) => s.id === newSignal.id)) return filtered;
-                return [newSignal, ...filtered];
-              });
-            }
-          } catch (err) {
-            console.error("Error parsing WebSocket message:", err);
-          }
-        };
-
-        socket.onclose = () => {
-          console.log("WebSocket disconnected. Retrying in 5 seconds...");
-          setWsStatus('reconnecting');
-          reconnectTimeout = setTimeout(connectWS, 5000);
-        };
-
-        socket.onerror = (err) => {
-          console.error("WebSocket error:", err);
-          socket?.close();
-        };
-
-      } catch (e) {
-        console.error("WebSocket connection setup error:", e);
-        setWsStatus('reconnecting');
-      }
-    };
-
-    connectWS();
-
-    return () => {
-      if (socket) socket.close();
-      clearTimeout(reconnectTimeout);
-    };
-  }, []);
-
-  // Fetch signals when selectedMarket changes, and set up 60s fallback polling if WS is disconnected
+  // Fetch signals when selectedMarket changes, and set up 30s polling loop
   useEffect(() => {
     fetchSignals(selectedMarket, true);
 
-    let interval: NodeJS.Timeout | null = null;
-    if (wsStatus === 'reconnecting') {
-      interval = setInterval(() => {
-        fetchSignals(selectedMarket, false);
-      }, 60000);
-    }
+    const interval = setInterval(() => {
+      fetchSignals(selectedMarket, false);
+    }, 30000); // Poll every 30 seconds
 
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
-  }, [selectedMarket, wsStatus]);
+  }, [selectedMarket]);
 
   // Confidence slider filters client-side on the returned data
   const filteredSignals = signals.filter((sig) => {
@@ -215,7 +142,7 @@ export function DashboardPage() {
         </span>
       );
     }
-    if (wsStatus === 'connected') {
+    if (fetchSuccess) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border border-sig-green/20 bg-sig-green/10 text-sig-green text-[11px] font-medium font-sans">
           <span className="w-1.5 h-1.5 rounded-full bg-sig-green animate-pulse" />
@@ -223,12 +150,7 @@ export function DashboardPage() {
         </span>
       );
     }
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border border-sig-amber/20 bg-sig-amber/10 text-sig-amber text-[11px] font-medium font-sans">
-        <span className="w-1.5 h-1.5 rounded-full bg-sig-amber animate-pulse" />
-        RECONNECTING
-      </span>
-    );
+    return null;
   };
 
   // Navigation items for mobile bottom nav

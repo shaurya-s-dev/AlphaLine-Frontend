@@ -46,7 +46,7 @@ function getRelativeTime(isoString: string): string {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const marketParam = searchParams.get("market") || "All";
+    const marketParam = searchParams.get("market") || "all";
     const typeParam = searchParams.get("type"); // Optional: BUY | SELL | HOLD
     const minConfidenceParam = searchParams.get("minConfidence"); // Optional
     
@@ -55,7 +55,7 @@ export async function GET(request: Request) {
 
     let dbItems: any[] = [];
 
-    // Check if we query a specific market or scan all
+    // Check if we query a specific market or scan all (case-insensitive check for "all")
     const isSpecificMarket = marketParam.toLowerCase() !== "all" && marketParam.trim() !== "";
 
     if (isSpecificMarket) {
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
         IndexName: "confidence-index",
         KeyConditionExpression: "market = :m",
         ExpressionAttributeValues: {
-          ":m": marketParam,
+          ":m": marketParam.toUpperCase(),
         },
         ScanIndexForward: false, // Sort descending by confidence_score (SK)
       };

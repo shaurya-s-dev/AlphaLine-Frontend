@@ -25,27 +25,19 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     market = get_market(ticker)
     
     # Evaluate Rules
-    is_buy = rsi < 45 and volume_delta > 1.3 and momentum > 0
-    is_sell = rsi > 65 and volume_delta > 1.2 and momentum < 0
+    is_buy = rsi < 55 and volume_delta > 1.1 and momentum > -0.01
+    is_sell = rsi > 55 and volume_delta > 1.1 and momentum < 0.01
     
     if is_buy:
         signal_type = "BUY"
-        # Scale confidence (50 to 95) based on oversold strength and volume spikes
-        rsi_strength = max(0.0, (45.0 - rsi) * 1.5)
-        vol_strength = max(0.0, (volume_delta - 1.3) * 15.0)
-        confidence = int(50 + min(45, rsi_strength + vol_strength))
-        
+        confidence = int(min(95, 50 + (55 - rsi) * 1.5 + (volume_delta - 1) * 20 + momentum * 100))
         entry = current_price
         stop_loss = entry * 0.98
         target = entry * 1.04
         
     elif is_sell:
         signal_type = "SELL"
-        # Scale confidence (50 to 95) based on overbought strength and volume spikes
-        rsi_strength = max(0.0, (rsi - 65.0) * 1.5)
-        vol_strength = max(0.0, (volume_delta - 1.2) * 15.0)
-        confidence = int(50 + min(45, rsi_strength + vol_strength))
-        
+        confidence = int(min(95, 50 + (rsi - 55) * 1.5 + (volume_delta - 1) * 20 + abs(momentum) * 100))
         entry = current_price
         stop_loss = entry * 1.02
         target = entry * 0.96
