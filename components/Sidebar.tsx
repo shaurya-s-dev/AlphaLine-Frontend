@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 export interface SidebarProps {
   activeTab: string;
@@ -8,6 +9,26 @@ export interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+  const [email, setEmail] = useState<string>('Loading...');
+  const supabase = createClient();
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setEmail(user.email);
+      } else {
+        setEmail('user@alphaline.fi');
+      }
+    };
+    getUser();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
+  };
+
   const navItems = [
     { name: 'Dashboard', icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -69,18 +90,31 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       </div>
 
       {/* User Section */}
-      <div className="flex items-center gap-2.5 border-t border-border-dark pt-4 px-2">
-        <div className="w-7 h-7 bg-indigo text-white rounded-full flex items-center justify-center text-[11px] font-bold select-none">
-          U
+      <div className="flex items-center justify-between border-t border-border-dark pt-4 px-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 bg-indigo text-white rounded-full flex items-center justify-center text-[11px] font-bold select-none flex-shrink-0">
+            {email[0]?.toUpperCase() || 'U'}
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[12px] font-medium text-frost truncate leading-tight">
+              {email}
+            </span>
+            <span className="text-[10px] text-muted leading-tight">
+              Free Plan
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col min-w-0">
-          <span className="text-[12px] font-medium text-frost truncate leading-tight">
-            user@alphaline.fi
-          </span>
-          <span className="text-[10px] text-muted leading-tight">
-            Free Plan
-          </span>
-        </div>
+
+        {/* Sign Out Button */}
+        <button
+          onClick={handleSignOut}
+          className="text-muted hover:text-sig-red p-1 rounded-[6px] hover:bg-raised transition-colors duration-150"
+          title="Sign Out"
+        >
+          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+        </button>
       </div>
     </aside>
   );
