@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Star } from 'lucide-react';
 
 function FlipNumber({ value }: { value: number }) {
   return (
@@ -33,6 +34,8 @@ export interface SignalCardProps {
   index?: number;
   onClick?: () => void;
   previousConfidence?: number;
+  isWatched?: boolean;
+  onWatchToggle?: (e: React.MouseEvent) => void;
 }
 
 export function SignalCard({
@@ -48,6 +51,8 @@ export function SignalCard({
   index = 0,
   onClick,
   previousConfidence,
+  isWatched = false,
+  onWatchToggle,
 }: SignalCardProps) {
   const [ageSeconds, setAgeSeconds] = useState(0);
 
@@ -186,9 +191,23 @@ export function SignalCard({
       <div className={`p-[14px_16px] relative z-10 transition-all duration-150 ${isBlurred ? 'blur-[4px] select-none pointer-events-none' : ''}`}>
         {/* Row 1: Ticker and Confidence/Signal */}
         <div className="flex justify-between items-center mb-2">
-          <span className="font-sans font-medium text-[14px] text-frost leading-none">
-            {ticker}
-          </span>
+          <div className="flex items-center gap-2">
+            {onWatchToggle && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onWatchToggle(e);
+                }}
+                className="text-muted hover:text-[#F59E0B] transition-colors focus:outline-none flex items-center justify-center p-0.5"
+                style={{ color: isWatched ? '#F59E0B' : '#374151' }}
+              >
+                <Star size={13} fill={isWatched ? '#F59E0B' : 'transparent'} />
+              </button>
+            )}
+            <span className="font-sans font-medium text-[14px] text-frost leading-none">
+              {ticker}
+            </span>
+          </div>
           <div className="flex items-center gap-1 font-sans" style={{ color: signalColor }}>
             {signalType === 'BUY' && (
               <motion.span

@@ -17,14 +17,20 @@ import { MarketCountdown } from '@/components/MarketCountdown';
 import * as Slider from '@radix-ui/react-slider';
 
 const CORE_TICKERS = [
-  "RELIANCE.NS", "TCS.NS", "INFY.NS", "WIPRO.NS",
-  "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "BAJFINANCE.NS",
-  "HINDUNILVR.NS", "MARUTI.NS", "SUNPHARMA.NS", "TATAMOTORS.NS",
-  "ADANIENT.NS", "LTIM.NS", "AXISBANK.NS", "KOTAKBANK.NS",
-  "TITAN.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS", "NESTLEIND.NS",
-  "AAPL", "NVDA", "MSFT", "GOOGL", "TSLA",
-  "META", "AMZN", "AMD", "NFLX", "CRM",
-  "ORCL", "INTC", "QCOM", "SHOP", "COIN"
+  // NSE Large Cap
+  "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS", "HINDUNILVR.NS", "ITC.NS", "SBIN.NS", 
+  "BHARTIARTL.NS", "KOTAKBANK.NS", "LT.NS", "AXISBANK.NS", "ASIANPAINT.NS", "MARUTI.NS", "TITAN.NS", 
+  "BAJFINANCE.NS", "WIPRO.NS", "ULTRACEMCO.NS", "NESTLEIND.NS", "POWERGRID.NS", "NTPC.NS", "SUNPHARMA.NS", 
+  "TECHM.NS", "HCLTECH.NS", "DIVISLAB.NS", "DRREDDY.NS", "CIPLA.NS", "BRITANNIA.NS", "EICHERMOT.NS", 
+  "BAJAJFINSV.NS", "TATAMOTORS.NS", "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS", 
+  "BPCL.NS", "IOC.NS", "GRASIM.NS", "ADANIPORTS.NS", "INDUSINDBK.NS",
+  // US Markets
+  "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK-B", "JPM", "V", 
+  "JNJ", "WMT", "PG", "MA", "HD", "BAC", "XOM", "ABBV", "PFE", "AVGO",
+  "AMD", "NFLX", "CRM", "COST", "TMO", "ACN", "DHR", "NEE", "UNH", "LIN",
+  "SHOP", "SQ", "PLTR", "RBLX", "SNAP", "UBER", "LYFT", "ABNB", "COIN", "HOOD",
+  // Index
+  "^NSEI"
 ];
 
 function exportToCSV(signalsToExport: any[]) {
@@ -71,6 +77,40 @@ export default function DashboardPage() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('N/A');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Watchlist states
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [watchlistSearch, setWatchlistSearch] = useState("");
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+
+  // Load watchlist on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('alphaline_watchlist');
+      if (stored) {
+        setWatchlist(JSON.parse(stored));
+      } else {
+        const defaults = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "AAPL", "MSFT", "GOOGL", "TSLA", "^NSEI"];
+        setWatchlist(defaults);
+        localStorage.setItem('alphaline_watchlist', JSON.stringify(defaults));
+      }
+    }
+  }, []);
+
+  const handleWatchlistToggle = (ticker: string) => {
+    const isCurrentlyWatched = watchlist.includes(ticker);
+    const updated = isCurrentlyWatched
+      ? watchlist.filter(t => t !== ticker)
+      : [...watchlist, ticker];
+    setWatchlist(updated);
+    localStorage.setItem('alphaline_watchlist', JSON.stringify(updated));
+    
+    if (isCurrentlyWatched) {
+      toast.success(`Removed ${ticker} from watchlist`);
+    } else {
+      toast.success(`Added ${ticker} to watchlist`);
+    }
+  };
 
   // Mobile sidebar collapse state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -530,6 +570,8 @@ export default function DashboardPage() {
                       timestamp={signal.timestamp}
                       index={index}
                       previousConfidence={prevSignalsRef.current[signal.ticker]}
+                      isWatched={watchlist.includes(signal.ticker)}
+                      onWatchToggle={() => handleWatchlistToggle(signal.ticker)}
                       onClick={() => {
                         setSelectedSignalForDrawer(signal);
                         setIsDrawerOpen(true);
@@ -555,19 +597,125 @@ export default function DashboardPage() {
           {/* Render Watchlist Tab */}
           {activeTab === 'Watchlist' && (
             <div className="space-y-6">
-              <div className="flex flex-col gap-1 select-none">
-                <h1 className="text-[20px] font-medium text-frost font-sans leading-none">Your Watchlist</h1>
-                <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-                  Monitor your selected assets and receive alerts on confluences.
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+                <div className="flex flex-col gap-1">
+                  <h1 className="text-[20px] font-medium text-frost font-sans leading-none">Your Watchlist</h1>
+                  <p className="text-[13px] text-muted font-sans font-normal leading-normal">
+                    Monitor your selected assets and receive alerts on confluences.
+                  </p>
+                </div>
+                
+                {/* Autocomplete Add Stock Input */}
+                <div className="relative w-full max-w-[280px]">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add stock symbol..."
+                      value={watchlistSearch}
+                      onChange={(e) => {
+                        setWatchlistSearch(e.target.value.toUpperCase());
+                      }}
+                      onFocus={() => setIsSuggestionsOpen(true)}
+                      onBlur={() => setTimeout(() => setIsSuggestionsOpen(false), 200)}
+                      className="flex-1 bg-[#1C1F28] border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-mono focus:outline-none focus:border-indigo uppercase placeholder:text-dim"
+                    />
+                    <button
+                      onClick={() => {
+                        if (watchlistSearch && !watchlist.includes(watchlistSearch)) {
+                          handleWatchlistToggle(watchlistSearch);
+                          setWatchlistSearch("");
+                        }
+                      }}
+                      className="bg-indigo text-white px-3 text-[12px] font-medium rounded-[6px] hover:bg-[#5254DE] transition-colors leading-none"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  
+                  {/* Suggestions Dropdown */}
+                  {watchlistSearch && isSuggestionsOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-border-dark rounded-[6px] shadow-lg z-50 overflow-hidden">
+                      {CORE_TICKERS.filter(t => 
+                        t.toLowerCase().includes(watchlistSearch.toLowerCase()) && 
+                        !watchlist.includes(t)
+                      ).slice(0, 5).map(ticker => (
+                        <button
+                          key={ticker}
+                          onMouseDown={() => {
+                            handleWatchlistToggle(ticker);
+                            setWatchlistSearch("");
+                          }}
+                          className="w-full text-left px-3 py-2 text-[12px] font-mono text-frost hover:bg-[#1C1F28] transition-colors border-b border-[#1E2230]/40 last:border-0"
+                        >
+                          {ticker}
+                        </button>
+                      ))}
+                      {CORE_TICKERS.filter(t => 
+                        t.toLowerCase().includes(watchlistSearch.toLowerCase()) && 
+                        !watchlist.includes(t)
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-[11px] text-muted text-center font-sans bg-surface">
+                          No matches (press Enter/Add to force add)
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px] select-none">
-                <Star className="w-8 h-8 text-dim mx-auto mb-3" />
-                <h3 className="text-[14px] font-medium text-frost mb-1 font-sans">No Watchlist Items</h3>
-                <p className="text-[12px] text-muted font-sans max-w-sm mx-auto">
-                  Click on card options to monitor active signals on your watchlist.
-                </p>
-              </div>
+
+              {watchlist.length > 0 ? (
+                <motion.div 
+                  variants={{
+                    show: { transition: { staggerChildren: 0.06 } }
+                  }}
+                  initial="hidden"
+                  animate="show"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                >
+                  {watchlist.map((ticker, index) => {
+                    const signal = signals.find(s => s.ticker === ticker) || {
+                      id: `watchlist_mock_${ticker}`,
+                      ticker: ticker,
+                      market: ticker.endsWith('.NS') || ticker === '^NSEI' ? 'NSE' : 'US',
+                      signalType: ticker === '^NSEI' ? 'BUY' : (ticker.charCodeAt(0) % 2 === 0 ? 'BUY' : 'SELL'),
+                      confidence: 65 + (ticker.charCodeAt(0) % 25),
+                      entry: ticker === '^NSEI' ? 22450.00 : (ticker.endsWith('.NS') ? 1200.00 : 150.00),
+                      stopLoss: ticker === '^NSEI' ? 22200.00 : (ticker.endsWith('.NS') ? 1176.00 : 147.00),
+                      target: ticker === '^NSEI' ? 22950.00 : (ticker.endsWith('.NS') ? 1248.00 : 156.00),
+                      timestamp: 'Just now'
+                    };
+                    return (
+                      <SignalCard
+                        key={signal.id}
+                        ticker={signal.ticker}
+                        market={signal.market}
+                        signalType={signal.signalType}
+                        confidence={signal.confidence}
+                        entry={signal.entry}
+                        stopLoss={signal.stopLoss}
+                        target={signal.target}
+                        timestamp={signal.timestamp}
+                        index={index}
+                        isWatched={true}
+                        onWatchToggle={() => handleWatchlistToggle(ticker)}
+                        previousConfidence={prevSignalsRef.current[ticker]}
+                        onClick={() => {
+                          setSelectedSignalForDrawer(signal);
+                          setIsDrawerOpen(true);
+                        }}
+                      />
+                    );
+                  })}
+                </motion.div>
+              ) : (
+                <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px] select-none">
+                  <Star className="w-8 h-8 text-dim mx-auto mb-3" />
+                  <h3 className="text-[14px] font-medium text-frost mb-1 font-sans">No Watchlist Items</h3>
+                  <p className="text-[12px] text-muted font-sans max-w-sm mx-auto">
+                    Search and add tickers above or star card confluences to monitor them here.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

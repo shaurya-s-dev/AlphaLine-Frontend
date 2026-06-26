@@ -1,18 +1,108 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { useRouter } from 'next/navigation';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { toast } from 'sonner';
+import { Star, ShieldAlert, Key, Clipboard, Trash2, ArrowUpRight, Plus, Terminal, LayoutDashboard, Activity } from 'lucide-react';
+
+interface ApiKey {
+  id: string;
+  name: string;
+  key: string;
+  created: string;
+  status: 'ACTIVE' | 'REVOKED';
+}
 
 export default function ApiDocsPage() {
   const router = useRouter();
-  const [apiKey, setApiKey] = useState('al_live_58c2d9a6f1e8a49c2b0c3d9e');
-  const [isCopied, setIsCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [isCopiedId, setIsCopiedId] = useState<string | null>(null);
 
-  const handleCopyKey = () => {
-    navigator.clipboard.writeText(apiKey);
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 2000);
+  // Default Stats Mock
+  const requestStats = [
+    { day: "Mon", requests: 120 },
+    { day: "Tue", requests: 340 },
+    { day: "Wed", requests: 480 },
+    { day: "Thu", requests: 620 },
+    { day: "Fri", requests: 880 },
+    { day: "Sat", requests: 510 },
+    { day: "Sun", requests: 478 },
+  ];
+
+  useEffect(() => {
+    setMounted(true);
+    document.title = "Alphaline — API Documentation";
+
+    // Load keys from LocalStorage
+    if (typeof window !== 'undefined') {
+      const storedKeys = localStorage.getItem('alphaline_api_keys');
+      if (storedKeys) {
+        setApiKeys(JSON.parse(storedKeys));
+      } else {
+        const defaultKeys: ApiKey[] = [
+          {
+            id: "key_1",
+            name: "Default Live Key",
+            key: "al_live_58c2d9a6f1e8a49c2b0c3d9e",
+            created: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+            status: "ACTIVE",
+          }
+        ];
+        setApiKeys(defaultKeys);
+        localStorage.setItem('alphaline_api_keys', JSON.stringify(defaultKeys));
+      }
+    }
+  }, []);
+
+  const saveKeys = (newKeys: ApiKey[]) => {
+    setApiKeys(newKeys);
+    localStorage.setItem('alphaline_api_keys', JSON.stringify(newKeys));
+  };
+
+  const handleGenerateKey = () => {
+    if (!newKeyName.trim()) {
+      toast.error("Enter a name for the API key.");
+      return;
+    }
+
+    const randomHex = Array.from({ length: 24 }, () => 
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('');
+    
+    const newKey: ApiKey = {
+      id: `key_${Date.now()}`,
+      name: newKeyName,
+      key: `al_live_${randomHex}`,
+      created: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      status: "ACTIVE",
+    };
+
+    const nextKeys = [...apiKeys, newKey];
+    saveKeys(nextKeys);
+    setNewKeyName("");
+    toast.success(`Generated API key "${newKey.name}"`);
+  };
+
+  const handleRevokeKey = (id: string) => {
+    const updated = apiKeys.map(k => {
+      if (k.id === id) {
+        return { ...k, status: 'REVOKED' as const };
+      }
+      return k;
+    });
+    saveKeys(updated);
+    toast.success("API key revoked.");
+  };
+
+  const handleCopyKey = (key: string, id: string) => {
+    navigator.clipboard.writeText(key);
+    setIsCopiedId(id);
+    toast.success("Key copied to clipboard.");
+    setTimeout(() => setIsCopiedId(null), 2000);
   };
 
   const handleNavClick = (tabName: string) => {
@@ -116,135 +206,207 @@ export default function ApiDocsPage() {
 
   // Mobile Bottom Nav items list
   const navItems = [
-    { name: 'Dashboard', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-      </svg>
-    )},
-    { name: 'Watchlist', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.237.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-      </svg>
-    )},
-    { name: 'Backtest', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    )},
-    { name: 'Risk', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-    )},
-    { name: 'API', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    )},
+    { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { name: 'Watchlist', icon: <Star className="w-5 h-5" /> },
+    { name: 'Backtest', icon: <Activity className="w-5 h-5" /> },
+    { name: 'Risk', icon: <ShieldAlert className="w-5 h-5" /> },
+    { name: 'API', icon: <Terminal className="w-5 h-5" /> },
   ];
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
-      {/* Desktop Sidebar */}
       <Sidebar activeTab="API" />
 
-      {/* Main Content Area */}
       <main className="flex-1 md:pl-[220px] p-6 pb-28 md:pb-6 max-w-5xl w-full mx-auto">
         
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-[20px] font-medium text-frost mb-1.5 font-brand leading-none">
-            Alphaline API
+            Developer API Hub
           </h1>
           <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-            Trading signals for your product. Integrate machine learning confluences directly.
+            Manage your credentials, monitor request rates, and integrate signals into your systems.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Top Usage Statistics Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6 items-start">
           
-          {/* Left Panel: Auth Credentials & Rate Limits */}
-          <div className="lg:col-span-1 space-y-6">
-            
-            {/* API Key Panel */}
-            <div className="bg-surface border border-border-dark p-5 rounded-[6px] space-y-4">
-              <h3 className="text-[14px] font-medium text-frost leading-none">
-                Your API Credentials
-              </h3>
-              
-              <div className="space-y-2">
-                <label className="block text-[11px] text-dim font-sans uppercase tracking-wider font-semibold">
-                  API Key
-                </label>
-                
+          {/* Key Manager Box */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-5 rounded-[6px] space-y-4">
+              <div className="flex justify-between items-center border-b border-[#1E2230]/40 pb-2">
+                <h3 className="text-[13px] font-bold text-muted uppercase tracking-wider leading-none">
+                  API Key Management
+                </h3>
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    readOnly
-                    value="al_live_••••••••••••••••"
-                    className="w-full bg-raised border border-border-dark text-[12px] text-muted p-2 rounded-[6px] font-mono focus:outline-none"
+                    placeholder="Key Label (e.g. Production)"
+                    value={newKeyName}
+                    onChange={e => setNewKeyName(e.target.value)}
+                    className="bg-void border border-border-dark text-[11px] text-frost px-2.5 py-1 rounded focus:outline-none focus:border-indigo"
                   />
                   <button
-                    onClick={handleCopyKey}
-                    className="bg-indigo text-white text-[12px] font-medium px-4 rounded-[6px] hover:bg-[#5254DE] transition-colors duration-150 font-sans"
+                    onClick={handleGenerateKey}
+                    className="bg-indigo hover:bg-[#5254DE] text-white px-2.5 py-1 text-[11px] font-medium rounded flex items-center gap-1 transition-colors leading-none"
                   >
-                    {isCopied ? 'Copied' : 'Copy'}
+                    <Plus size={12} /> Generate Key
                   </button>
                 </div>
               </div>
-            </div>
 
-            {/* Rate Limits Table */}
-            <div className="bg-surface border border-border-dark rounded-[6px] overflow-hidden">
-              <div className="border-b border-border-dark p-3.5 bg-[#131720]">
-                <h3 className="text-[12px] font-semibold text-frost font-sans uppercase tracking-wider">
-                  API Rate Limits
-                </h3>
-              </div>
-              
+              {/* Active Keys Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-void border-b border-border-dark">
-                      <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wider font-sans">Tier</th>
-                      <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wider font-sans text-right">Quota / Mo</th>
-                      <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wider font-sans text-right">Rate</th>
+                    <tr className="border-b border-[#1E2230]/40 select-none">
+                      <th className="pb-2 text-[10px] text-dim uppercase tracking-wider font-sans">Name</th>
+                      <th className="pb-2 text-[10px] text-dim uppercase tracking-wider font-sans font-mono">Key Secret</th>
+                      <th className="pb-2 text-[10px] text-dim uppercase tracking-wider font-sans text-center">Status</th>
+                      <th className="pb-2 text-[10px] text-dim uppercase tracking-wider font-sans text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#1E2230]/50 font-sans text-[12px] text-frost">
-                    {[
-                      { tier: 'FREE', quota: '1,000', rate: '1/sec' },
-                      { tier: 'PRO', quota: '100,000', rate: '10/sec' },
-                      { tier: 'PARTNER', quota: 'UNLIMITED', rate: 'CUSTOM' }
-                    ].map((row, idx) => (
-                      <tr 
-                        key={idx}
-                        className={`transition-colors duration-150 hover:bg-raised ${
-                          idx % 2 === 0 ? 'bg-transparent' : 'bg-void/40'
-                        }`}
-                      >
-                        <td className="p-3 font-semibold text-frost">{row.tier}</td>
-                        <td className="p-3 font-mono text-right text-muted">{row.quota}</td>
-                        <td className="p-3 font-mono text-right text-indigo">{row.rate}</td>
+                  <tbody className="divide-y divide-[#1E2230]/20 font-sans text-[12.5px] text-[#E2E8F0]">
+                    {apiKeys.map((k) => (
+                      <tr key={k.id} className="hover:bg-[#1C1F28]/30 transition-colors">
+                        <td className="py-2.5 pr-2 font-medium">{k.name}</td>
+                        <td className="py-2.5 pr-2 font-mono text-muted text-[11.5px] select-all">
+                          {k.status === 'ACTIVE' ? k.key : '••••••••••••••••••••••••'}
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            k.status === 'ACTIVE' 
+                              ? 'text-sig-green bg-sig-green/5 border border-sig-green/10'
+                              : 'text-dim bg-raised/20 border border-border-dark'
+                          }`}>
+                            {k.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right space-x-1">
+                          {k.status === 'ACTIVE' && (
+                            <>
+                              <button
+                                onClick={() => handleCopyKey(k.key, k.id)}
+                                className="text-muted hover:text-indigo p-1 rounded transition-colors inline-flex items-center justify-center"
+                                title="Copy Key"
+                              >
+                                <Clipboard size={12} />
+                              </button>
+                              <button
+                                onClick={() => handleRevokeKey(k.id)}
+                                className="text-muted hover:text-sig-red p-1 rounded transition-colors inline-flex items-center justify-center"
+                                title="Revoke Key"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
           </div>
 
-          {/* Right Panel: Endpoint Documentation Cards */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* Usage Chart Panel */}
+          <div className="lg:col-span-1 space-y-4 bg-[#111318]/40 border border-border-dark p-4 rounded-[6px]">
+            <span className="text-[11px] font-bold text-muted uppercase tracking-wider block">
+              API Requests (Last 7 Days)
+            </span>
             
+            <div className="w-full h-[120px]">
+              {mounted && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={requestStats} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="apiChartGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366F1" stopOpacity="0.2"/>
+                        <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0"/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis 
+                      dataKey="day" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#374151', fontSize: 10, fontFamily: 'var(--font-jetbrains-mono)' }} 
+                    />
+                    <YAxis hide={true} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#111318', borderColor: '#1E2230', borderRadius: '6px', color: '#E2E8F0', fontSize: '10px' }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="requests" 
+                      stroke="#6366F1" 
+                      strokeWidth={1.5} 
+                      fill="url(#apiChartGradient)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 border-t border-[#1E2230] pt-3 text-left">
+              <div>
+                <span className="block text-[9px] text-dim uppercase tracking-wide">Usage Limit</span>
+                <span className="font-mono text-frost font-medium text-[13px]">3,428 / 10,000 reqs</span>
+              </div>
+              <div>
+                <span className="block text-[9px] text-dim uppercase tracking-wide">Avg Latency</span>
+                <span className="font-mono text-indigo font-medium text-[13px]">42 ms</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Bottom Documentation Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          
+          {/* Rate Limits */}
+          <div className="lg:col-span-1 bg-[#111318]/50 border border-border-dark rounded-[6px] overflow-hidden select-none">
+            <div className="border-b border-border-dark p-3.5 bg-void">
+              <h3 className="text-[11px] font-bold text-muted uppercase tracking-wider leading-none">
+                Rate Quota Limits
+              </h3>
+            </div>
+            
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-void/50 border-b border-border-dark">
+                  <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wider font-sans">Tier</th>
+                  <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wider font-sans text-right">Limit</th>
+                  <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wider font-sans text-right">Burst Rate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1E2230]/50 font-sans text-[12px] text-frost">
+                {[
+                  { tier: 'FREE', quota: '1,000 / mo', rate: '1 req/s' },
+                  { tier: 'PRO', quota: '100,000 / mo', rate: '10 req/s' },
+                  { tier: 'PARTNER', quota: 'UNLIMITED', rate: 'CUSTOM' }
+                ].map((row, idx) => (
+                  <tr key={idx} className="hover:bg-[#1C1F28]/30 transition-colors">
+                    <td className="p-3 font-semibold text-frost">{row.tier}</td>
+                    <td className="p-3 font-mono text-right text-muted">{row.quota}</td>
+                    <td className="p-3 font-mono text-right text-indigo">{row.rate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Endpoint Documentation */}
+          <div className="lg:col-span-2 space-y-6">
             {endpoints.map((ep, idx) => (
               <div 
                 key={idx}
                 className="bg-surface border border-border-dark rounded-[6px] overflow-hidden"
               >
                 {/* Endpoint Header */}
-                <div className="border-b border-border-dark p-4 bg-[#131720] flex flex-wrap items-center justify-between gap-3">
+                <div className="border-b border-border-dark p-4 bg-void flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                     <span className="text-[10px] px-2 py-0.5 bg-indigo/10 border border-indigo/20 text-indigo font-bold rounded-[4px] font-sans">
                       {ep.method}
@@ -256,25 +418,24 @@ export default function ApiDocsPage() {
                 </div>
 
                 {/* Description */}
-                <div className="p-4 border-b border-border-dark/40 bg-void/10">
-                  <p className="text-[12.5px] text-muted leading-relaxed font-sans">
+                <div className="p-4 border-b border-[#1E2230]/40 bg-void/10">
+                  <p className="text-[12.5px] text-muted leading-relaxed font-sans font-normal">
                     {ep.desc}
                   </p>
                 </div>
 
-                {/* Code Block Response */}
+                {/* Response Code Block */}
                 <div className="p-4 bg-void">
                   <div className="flex justify-between items-center text-[10px] text-dim uppercase tracking-wider mb-2 font-semibold">
                     <span>Response Payload (JSON)</span>
                   </div>
                   
-                  <pre className="bg-void border border-[#1E2230] rounded-[6px] p-4 overflow-x-auto text-[12px] text-[#E2E8F0] font-mono leading-relaxed max-h-[220px]">
+                  <pre className="bg-[#111318] border border-[#1E2230] rounded-[6px] p-4 overflow-x-auto text-[12px] text-[#E2E8F0] font-mono leading-relaxed max-h-[220px]">
                     <code>{ep.response}</code>
                   </pre>
                 </div>
               </div>
             ))}
-
           </div>
 
         </div>

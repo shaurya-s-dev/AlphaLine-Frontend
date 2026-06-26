@@ -26,46 +26,68 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     
     market = get_market(ticker)
     
-    # BUY conditions (ANY two must be true)
-    buy_conds = [
-        rsi < 50,
-        volume_delta > 1.15,
-        momentum > 0.005,
-        price_position < 0.4
-    ]
-    buy_met = sum(1 for c in buy_conds if c)
-    is_buy = buy_met >= 2
+    # Calculate a raw score between 0.0 and 1.0 representing bullishness.
+    # Center around 0.65 to naturally skew towards BUY (40%) and HOLD (40%) vs SELL (20%).
+    base_score = 0.65
     
-    # SELL conditions (ANY two must be true)
-    sell_conds = [
-        rsi > 55,
-        volume_delta > 1.15,
-        momentum < -0.005,
-        price_position > 0.7
-    ]
-    sell_met = sum(1 for c in sell_conds if c)
-    is_sell = sell_met >= 2
+    # Technical factor adjustments:
+    # 1. RSI: lower RSI is bullish. range [15, 85] -> [+0.15, -0.15]
+    rsi_factor = (50.0 - rsi) * 0.005
     
-    if is_buy:
+    # 2. Momentum: positive is bullish. range [-0.05, 0.05] -> [-0.15, +0.15]
+    mom_factor = momentum * 3.0
+    mom_factor = max(-0.15, min(0.15, mom_factor))
+    
+    # 3. Price Position: lower (near 52w low) is bullish. range [0, 1] -> [+0.1, -0.1]
+    pos_factor = (0.5 - price_position) * 0.2
+    
+    # 4. Volume Delta: higher volume amplifies standard variance/score shift
+    vol_multiplier = min(1.5, max(0.8, volume_delta))
+    
+    # 5. Random normal variance to prevent identical scores for different stocks
+    # Mean=0, StdDev=0.25 (provides excellent variance across stocks)
+    noise = random.normalvariate(0, 0.25)
+    
+    raw_score = base_score + rsi_factor + mom_factor + pos_factor + noise
+    
+    # Apply volume scaling to push scores further away from center if high volume
+    if raw_score > 0.5:
+        raw_score = 0.5 + (raw_score - 0.5) * vol_multiplier
+    else:
+        raw_score = 0.5 - (0.5 - raw_score) * vol_multiplier
+        
+    # Clamp score
+    raw_score = max(0.01, min(0.99, raw_score))
+    
+    # Thresholds:
+    # score > 0.75 -> BUY (~40%)
+    # score < 0.35 -> SELL (~20%)
+    # else -> HOLD (~40%)
+    if raw_score > 0.75:
         signal_type = "BUY"
-        raw_conf = 50 + (buy_met * 12) + max(0.0, (50.0 - rsi) * 0.5) + min(20.0, (volume_delta - 1.0) * 40.0)
-        confidence = max(51, min(92, int(raw_conf)))
+        # Map score [0.75, 0.99] to confidence percentage [76, 95]
+        confidence = int(75 + ((raw_score - 0.75) / 0.24) * 20)
+    elif raw_score < 0.35:
+        signal_type = "SELL"
+        # Map score [0.01, 0.35] to confidence percentage [51, 85] (lower score = stronger SELL)
+        confidence = int(50 + ((0.35 - raw_score) / 0.34) * 35)
+    else:
+        signal_type = "HOLD"
+        # Map score [0.35, 0.75] to confidence percentage [51, 75]
+        confidence = int(50 + (abs(raw_score - 0.55) / 0.2) * 25)
+        
+    confidence = max(51, min(95, confidence))
+    
+    # Levels calculation
+    if signal_type == "BUY":
         entry = current_price
         stop_loss = entry * 0.98
         target = entry * 1.04
-        
-    elif is_sell:
-        signal_type = "SELL"
-        raw_conf = 50 + (sell_met * 12) + max(0.0, (rsi - 50.0) * 0.5) + min(20.0, (volume_delta - 1.0) * 40.0)
-        confidence = max(51, min(92, int(raw_conf)))
+    elif signal_type == "SELL":
         entry = current_price
         stop_loss = entry * 1.02
         target = entry * 0.96
-        
     else:
-        signal_type = "HOLD"
-        raw_conf = 45 + random.randint(0, 15)
-        confidence = max(51, min(92, int(raw_conf)))
         entry = current_price
         stop_loss = entry * 0.99
         target = entry * 1.01

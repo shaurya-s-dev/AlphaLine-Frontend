@@ -12,6 +12,7 @@ export default function RiskPage() {
   const [portfolioSize, setPortfolioSize] = useState<string>('50000');
   const [currencySymbol, setCurrencySymbol] = useState<'₹' | '$'>('₹');
   const [riskPercent, setRiskPercent] = useState<number>(2.0);
+  const [atrMultiplier, setAtrMultiplier] = useState<number>(2.0);
   
   // State for signals data
   const [signals, setSignals] = useState<any[]>([]);
@@ -92,26 +93,27 @@ export default function RiskPage() {
   // Map each signal to its computed risk metrics
   const computedSignals = signals.map((sig) => {
     const entry = sig.entry || 0;
-    const stopLoss = sig.stopLoss || 0;
     const target = sig.target || 0;
     
-    // Suggested position size is portfolio * risk%
-    const suggestedPosSize = rawRiskVal;
+    // Suggest a realistic average true range (ATR) of 1.5% of the stock's entry price
+    const atr = Math.round(entry * 0.015 * 100) / 100 || 1.5;
+    const stopDistance = atrMultiplier * atr;
     
-    // Number of shares: position size / entry price
-    const shares = entry > 0 ? suggestedPosSize / entry : 0;
+    // suggested shares: risk amount in currency / stop distance
+    const shares = stopDistance > 0 ? rawRiskVal / stopDistance : 0;
+    const suggestedPosSize = shares * entry;
     
-    // Max loss: shares * entry-to-stopLoss difference
-    const stopDistance = Math.abs(entry - stopLoss);
-    const maxLossCurrency = shares * stopDistance;
+    const maxLossCurrency = rawRiskVal; // Under ATR sizing, max loss matches risk per trade
     const maxLossPercent = entry > 0 ? (stopDistance / entry) * 100 : 0;
     
-    // Risk to Reward ratio
     const rewardDistance = Math.abs(target - entry);
     const riskRewardRatio = stopDistance > 0 ? rewardDistance / stopDistance : 0;
+    const atrStopLoss = sig.signalType === 'SELL' ? entry + stopDistance : entry - stopDistance;
 
     return {
       ...sig,
+      atr,
+      atrStopLoss,
       suggestedPosSize,
       shares,
       maxLossCurrency,
@@ -240,13 +242,41 @@ export default function RiskPage() {
               </div>
             </div>
 
+            {/* ATR Multiplier Slider */}
+            <div className="space-y-2.5">
+              <div className="flex justify-between items-center text-[11px] text-dim font-sans uppercase tracking-wider font-semibold">
+                <span>ATR Stop Multiplier</span>
+                <span className="font-mono text-frost text-[12px] font-normal tracking-normal lowercase">
+                  {atrMultiplier.toFixed(1)}x
+                </span>
+              </div>
+              
+              <input
+                type="range"
+                min="1.0"
+                max="4.0"
+                step="0.5"
+                value={atrMultiplier}
+                onChange={(e) => setAtrMultiplier(parseFloat(e.target.value))}
+                className="w-full h-1 bg-raised rounded-[6px] appearance-none cursor-pointer accent-indigo"
+                style={{ WebkitAppearance: 'none' }}
+              />
+              
+              <div className="flex justify-between text-[9px] text-muted font-mono leading-none">
+                <span>1.0x</span>
+                <span>2.5x</span>
+                <span>4.0x</span>
+              </div>
+            </div>
+
             {/* Formula Context Note */}
             <div className="bg-void border border-border-dark p-3 rounded-[6px] text-[11px] text-muted leading-relaxed">
-              <span className="text-frost font-medium font-sans">Calculation Rule:</span>
+              <span className="text-frost font-medium font-sans">ATR Sizing Rule:</span>
               <ul className="list-disc list-inside mt-1 space-y-1 font-mono text-[10px]">
-                <li>Alloc. = Portfolio &times; Risk%</li>
-                <li>Shares = Alloc. / Entry Price</li>
-                <li>Max Loss = Shares &times; distance to Stop-Loss</li>
+                <li>ATR = 1.5% of Entry Price</li>
+                <li>Stop Distance = Mult &times; ATR</li>
+                <li>Shares = (Port &times; Risk%) / Stop Dist</li>
+                <li>Alloc. = Shares &times; Entry Price</li>
               </ul>
             </div>
           </div>
@@ -310,9 +340,14 @@ export default function RiskPage() {
                           </span>
                         </div>
 
-                        {/* Entry Price */}
-                        <div className="text-[13px] font-mono text-frost text-right">
-                          {currencySymbol}{sig.entry.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {/* Entry Price & ATR SL */}
+                        <div className="text-right">
+                          <span className="text-[13px] font-mono text-frost block">
+                            {currencySymbol}{sig.entry.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span className="text-[10px] font-mono text-muted block mt-0.5" title={`ATR: ${sig.atr.toFixed(2)}`}>
+                            SL: {currencySymbol}{sig.atrStopLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </div>
 
                         {/* Suggested Position size */}
