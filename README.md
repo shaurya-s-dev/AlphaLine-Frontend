@@ -72,6 +72,24 @@ Rather than querying a relational database with expensive JOINs, Alphaline pre-c
 
 ---
 
+## ✨ Premium UI/UX & Interactive Features
+
+Alphaline includes a suite of advanced client-side micro-interactions and premium dashboard tools:
+
+* **Command Palette (`Ctrl+K` / `Cmd+K`)**: Instant search and page routing with arrow-key navigation and details drawers.
+* **Signal Alert Banner**: Automatically checks incoming signal confluences and displays a smooth banner notification when confidence exceeds `80%`.
+* **Sector Heatmap**: Dynamic grid visualization mapping relative trade rating density across Indian (NSE) and US (NYSE) markets.
+* **Portfolio Simulator**: Backtest and compute historical returns with custom trade grids and performance metrics.
+* **Signal Accuracy Tracker**: Renders BUY/SELL confidence performance distribution histograms and letter grades.
+* **Premium Micro-interactions**:
+  - **Number Flip Animation**: Confidence levels animate using staggered Framer Motion slides on data updates.
+  - **Live Age Tracker**: Dynamic timers displaying real-time elapsed age since signal creation.
+  - **Click Ripple Effect**: Smooth expanding color ripples indicating selections.
+  - **Dynamic Status Glows**: Pulse dots and card border flash highlights showing immediate updates.
+  - **Weekend-aware Market Countdowns**: Interactive ticker countdowns for NSE and NYSE showing hours/minutes until next open/close states.
+
+---
+
 ## 📊 DynamoDB single-table Schema Design
 
 Alphaline uses a single-table design (`alphaline-signals`) to store all market data, active confluences, and historical logs.

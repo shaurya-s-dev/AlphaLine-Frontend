@@ -2,49 +2,51 @@
 
 import React, { useState, useEffect } from 'react';
 
+function getMinutesToNextState(market: 'NSE' | 'NYSE', now: Date) {
+  const timeZone = market === 'NSE' ? 'Asia/Kolkata' : 'America/New_York';
+  const openTime = market === 'NSE' ? 9 * 60 + 15 : 9 * 60 + 30;
+  const closeTime = market === 'NSE' ? 15 * 60 + 30 : 16 * 60;
+  
+  // Get date in target timezone
+  const tzDate = new Date(now.toLocaleString("en-US", { timeZone }));
+  const day = tzDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const hour = tzDate.getHours();
+  const minute = tzDate.getMinutes();
+  const totalMinutes = hour * 60 + minute;
+  
+  const isWeekend = day === 0 || day === 6;
+  const isTradingHour = totalMinutes >= openTime && totalMinutes < closeTime;
+  const isOpen = !isWeekend && isTradingHour;
+  
+  if (isOpen) {
+    return { isOpen: true, minutes: closeTime - totalMinutes };
+  } else {
+    // If it's today (weekday) before openTime, the next open is today at openTime
+    if (!isWeekend && totalMinutes < openTime) {
+      return { isOpen: false, minutes: openTime - totalMinutes };
+    }
+    
+    // Otherwise, find the next weekday (Mon-Fri)
+    let targetDate = new Date(tzDate);
+    let daysAdded = 0;
+    while (true) {
+      daysAdded++;
+      targetDate.setDate(targetDate.getDate() + 1);
+      const targetDay = targetDate.getDay();
+      if (targetDay >= 1 && targetDay <= 5) {
+        break;
+      }
+    }
+    
+    const diff = (daysAdded * 24 * 60) + openTime - totalMinutes;
+    return { isOpen: false, minutes: diff };
+  }
+}
+
 function getMarketStatus() {
   const now = new Date();
-  
-  // IST = UTC+5:30
-  const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-  const istHours = ist.getUTCHours();
-  const istMinutes = ist.getUTCMinutes();
-  const istDay = ist.getUTCDay();
-  const istTotal = istHours * 60 + istMinutes
-  
-  // NSE: 9:15 AM to 3:30 PM IST, Mon-Fri
-  const nseOpen = 9 * 60 + 15;   // 555
-  const nseClose = 15 * 60 + 30;  // 930
-  const nseIsOpen = istDay >= 1 && istDay <= 5 
-    && istTotal >= nseOpen && istTotal < nseClose;
-
-  // EST = UTC-5
-  const est = new Date(now.getTime() - (5 * 60 * 60 * 1000));
-  const estHours = est.getUTCHours();
-  const estMinutes = est.getUTCMinutes();
-  const estDay = est.getUTCDay();
-  const estTotal = estHours * 60 + estMinutes;
-  
-  // NYSE: 9:30 AM to 4:00 PM EST, Mon-Fri
-  const nyseOpen = 9 * 60 + 30;
-  const nyseClose = 16 * 60;
-  const usIsOpen = estDay >= 1 && estDay <= 5
-    && estTotal >= nyseOpen && estTotal < nyseClose;
-
-  // Calculate time until next open/close
-  function minutesUntil(targetMinutes: number, currentMinutes: number) {
-    let diff = targetMinutes - currentMinutes;
-    if (diff < 0) diff += 24 * 60;
-    return diff;
-  }
-
-  const nseMinutesLeft = nseIsOpen 
-    ? minutesUntil(nseClose, istTotal)
-    : minutesUntil(nseOpen, istTotal);
-  
-  const usMinutesLeft = usIsOpen
-    ? minutesUntil(nyseClose, estTotal)
-    : minutesUntil(nyseOpen, estTotal);
+  const nseStatus = getMinutesToNextState('NSE', now);
+  const usStatus = getMinutesToNextState('NYSE', now);
 
   function formatTime(minutes: number) {
     const h = Math.floor(minutes / 60);
@@ -55,16 +57,16 @@ function getMarketStatus() {
 
   return {
     nse: {
-      open: nseIsOpen,
-      label: nseIsOpen 
-        ? `closes ${formatTime(nseMinutesLeft)}`
-        : `opens ${formatTime(nseMinutesLeft)}`,
+      open: nseStatus.isOpen,
+      label: nseStatus.isOpen 
+        ? `closes ${formatTime(nseStatus.minutes)}`
+        : `opens ${formatTime(nseStatus.minutes)}`,
     },
     us: {
-      open: usIsOpen,
-      label: usIsOpen
-        ? `closes ${formatTime(usMinutesLeft)}`
-        : `opens ${formatTime(usMinutesLeft)}`,
+      open: usStatus.isOpen,
+      label: usStatus.isOpen
+        ? `closes ${formatTime(usStatus.minutes)}`
+        : `opens ${formatTime(usStatus.minutes)}`,
     }
   };
 }
