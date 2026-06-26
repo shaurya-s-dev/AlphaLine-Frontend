@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 
 export interface SignalCardProps {
   ticker: string;
@@ -13,6 +14,7 @@ export interface SignalCardProps {
   timestamp: string;
   isBlurred?: boolean;
   index?: number;
+  onClick?: () => void;
 }
 
 export function SignalCard({
@@ -26,13 +28,8 @@ export function SignalCard({
   timestamp,
   isBlurred = false,
   index = 0,
+  onClick,
 }: SignalCardProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Parse relative timestamp to seconds
   const parseTimestampToSeconds = (ts: string): number => {
     if (!ts) return 0;
@@ -77,101 +74,87 @@ export function SignalCard({
     return `${hrs}h ${remainingMins}m ago`;
   };
 
-  const colorMap = {
-    BUY: {
-      text: 'text-sig-green',
-      bg: 'bg-sig-green',
-      border: 'border-l-sig-green',
-      hex: '#22C55E',
-      glowColor: 'rgba(34, 197, 94, 0.4)',
-      hoverGlow: 'rgba(34, 197, 94, 0.2)',
-    },
-    SELL: {
-      text: 'text-sig-red',
-      bg: 'bg-sig-red',
-      border: 'border-l-sig-red',
-      hex: '#EF4444',
-      glowColor: 'rgba(239, 68, 68, 0.4)',
-      hoverGlow: 'rgba(239, 68, 68, 0.2)',
-    },
-    HOLD: {
-      text: 'text-sig-amber',
-      bg: 'bg-sig-amber',
-      border: 'border-l-sig-amber',
-      hex: '#F59E0B',
-      glowColor: 'rgba(245, 158, 11, 0.4)',
-      hoverGlow: 'rgba(245, 158, 11, 0.2)',
-    },
+  const signalColors = {
+    BUY: '#22C55E',
+    SELL: '#EF4444',
+    HOLD: '#F59E0B',
   };
 
-  const colors = colorMap[signalType] || colorMap.BUY;
+  const signalColor = signalColors[signalType] || signalColors.BUY;
 
   // Calculate dynamic Risk-Reward Ratio
   const stopDistance = Math.abs(entry - stopLoss);
   const rewardDistance = Math.abs(target - entry);
   const rrRatio = stopDistance > 0 ? rewardDistance / stopDistance : 2.1;
 
+  const cardVariants = {
+    hidden: { opacity: 0, y: 16 },
+    show: { 
+      opacity: 1, 
+      y: 0, 
+      transition: { 
+        duration: 0.3, 
+        ease: [0.23, 1, 0.32, 1] 
+      } 
+    }
+  };
+
   return (
-    <div
-      className={`signal-card relative w-full rounded-[6px] bg-surface border border-border-dark overflow-hidden border-l-[3px] ${colors.border} ${
-        isBlurred
-          ? ''
-          : 'hover:border-t-[#2A2F3E] hover:border-r-[#2A2F3E] hover:border-b-[#2A2F3E] hover:bg-[#131720]'
+    <motion.div
+      variants={cardVariants}
+      initial="hidden"
+      animate="show"
+      whileHover={isBlurred ? {} : { y: -2, transition: { duration: 0.2 } }}
+      onClick={isBlurred ? undefined : onClick}
+      className={`relative w-full rounded-[6px] bg-surface border border-border-dark overflow-hidden ${
+        isBlurred ? '' : 'cursor-pointer'
       }`}
       style={{
-        animation: 'cardSlideIn 400ms ease-out forwards',
-        animationDelay: `${index * 60}ms`,
-        opacity: 0,
-        ['--glow-color' as any]: colors.hoverGlow,
+        borderLeft: `3px solid ${signalColor}`,
       }}
     >
-      {/* Self-contained CSS animations and hover effects */}
-      <style jsx>{`
-        @keyframes cardSlideIn {
-          from {
-            opacity: 0;
-            transform: translateY(16px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes cardLivePulse {
-          0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.4;
-            transform: scale(0.8);
-          }
-        }
-        .signal-card {
-          transition: box-shadow 200ms ease-in-out, border-color 200ms ease-in-out, background-color 200ms ease-in-out;
-        }
-        .signal-card:hover {
-          box-shadow: inset 3px 0 12px var(--glow-color);
-        }
-      `}</style>
-
-      {/* Live pulse dot in top-right */}
+      {/* Shimmer Effect on Hover */}
       {!isBlurred && (
-        <div
-          className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full"
+        <motion.div
+          className="absolute inset-0 pointer-events-none z-0"
           style={{
-            backgroundColor: colors.hex,
-            animation: 'cardLivePulse 2s ease infinite',
+            background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%)",
+            backgroundSize: "200% 100%",
           }}
+          initial={{ backgroundPosition: "200% 0" }}
+          whileHover={{ backgroundPosition: "-200% 0" }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
         />
       )}
 
+      {/* Live pulse dot in top-right */}
+      {!isBlurred && (
+        <div className="absolute top-4 right-4 z-10 flex items-center justify-center">
+          <motion.span
+            animate={{ opacity: [1, 0.4, 1], scale: [1, 0.9, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="w-1.5 h-1.5 rounded-full"
+            style={{ backgroundColor: signalColor }}
+          />
+        </div>
+      )}
+
       {/* Blurred content wrapper */}
-      <div className={`p-[14px_16px] transition-all duration-150 ${isBlurred ? 'blur-[4px] select-none pointer-events-none' : ''}`}>
+      <div className={`p-[14px_16px] relative z-10 transition-all duration-150 ${isBlurred ? 'blur-[4px] select-none pointer-events-none' : ''}`}>
         {/* Row 1: Ticker and Confidence/Signal */}
         <div className="flex justify-between items-center mb-2">
-          <span className="font-sans font-medium text-[14px] text-frost leading-none">{ticker}</span>
-          <div className="flex items-center gap-1 font-sans" style={{ color: colors.hex }}>
+          <span className="font-sans font-medium text-[14px] text-frost leading-none">
+            {ticker}
+          </span>
+          <div className="flex items-center gap-1 font-sans" style={{ color: signalColor }}>
+            {signalType === 'BUY' && (
+              <motion.span
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="w-[6px] h-[6px] rounded-full inline-block mr-1.5"
+                style={{ background: signalColor }}
+              />
+            )}
             <span className="font-mono text-[13px] font-medium leading-none">{confidence}%</span>
             <span className="text-[11px] leading-none">·</span>
             <span className="text-[11px] font-medium uppercase tracking-widest leading-none">{signalType}</span>
@@ -180,12 +163,14 @@ export function SignalCard({
 
         {/* Row 2: Confidence Bar with Glow */}
         <div className="h-[2px] w-full bg-raised rounded-full overflow-hidden mb-3">
-          <div
-            className={`h-full ${colors.bg}`}
-            style={{
-              width: `${mounted ? confidence : 0}%`,
-              transition: 'width 600ms ease',
-              boxShadow: mounted ? `0 0 6px ${colors.glowColor}` : 'none',
+          <motion.div
+            style={{ background: signalColor, height: 2, borderRadius: 1 }}
+            initial={{ width: "0%" }}
+            animate={{ width: `${confidence}%` }}
+            transition={{ 
+              duration: 0.8, 
+              delay: index * 0.05, 
+              ease: [0.23, 1, 0.32, 1] 
             }}
           />
         </div>
@@ -230,14 +215,14 @@ export function SignalCard({
 
       {/* Free Tier Blur Overlay */}
       {isBlurred && (
-        <div className="absolute inset-0 bg-[#0D0F14]/85 flex flex-col items-center justify-center gap-2 z-10 pointer-events-auto">
+        <div className="absolute inset-0 bg-[#0D0F14]/85 flex flex-col items-center justify-center gap-2 z-20 pointer-events-auto">
           <span className="font-sans font-medium text-[13px] text-frost">Upgrade to Pro</span>
           <button className="bg-indigo text-white text-[12px] font-medium px-4 py-1.5 rounded-[6px] hover:bg-[#5254DE] transition-all duration-150">
             Unlock Now
           </button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
