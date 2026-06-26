@@ -1,8 +1,47 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { useRouter } from 'next/navigation';
+import { LayoutDashboard, Star, Activity, ShieldAlert, Terminal } from 'lucide-react';
+
+// Count-up helper component using requestAnimationFrame
+function CountUp({ 
+  value, 
+  duration = 800, 
+  decimalPlaces = 0, 
+  suffix = '' 
+}: { 
+  value: number; 
+  duration?: number; 
+  decimalPlaces?: number; 
+  suffix?: string; 
+}) {
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    let startTimestamp: number | null = null;
+    let animationFrameId: number;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      setCurrent(progress * value);
+      
+      if (progress < 1) {
+        animationFrameId = window.requestAnimationFrame(step);
+      }
+    };
+
+    animationFrameId = window.requestAnimationFrame(step);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [value, duration]);
+
+  return <span className="font-mono">{current.toFixed(decimalPlaces)}{suffix}</span>;
+}
 
 export default function BacktestPage() {
   const router = useRouter();
@@ -18,6 +57,11 @@ export default function BacktestPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any | null>(null);
+
+  // Set page title on mount
+  useEffect(() => {
+    document.title = "Alphaline — Strategy Backtesting";
+  }, []);
 
   const handleNavClick = (tabName: string) => {
     if (tabName === 'Dashboard') {
@@ -39,51 +83,90 @@ export default function BacktestPage() {
     setError(null);
     setResults(null);
 
+    const startTime = Date.now();
+
     try {
       const response = await fetch(`/api/backtest?ticker=${ticker}&from=${from}&to=${to}`);
       if (!response.ok) {
         throw new Error("Failed to execute backtest query");
       }
       const data = await response.json();
+      
+      // Enforce premium simulated computation delay of 1200ms
+      const elapsed = Date.now() - startTime;
+      const remaining = 1200 - elapsed;
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
+
       if (data.success) {
         setResults(data);
       } else {
         setError(data.error || "Failed to load backtest data");
       }
     } catch (err: any) {
+      const elapsed = Date.now() - startTime;
+      const remaining = 1200 - elapsed;
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
       setError(err.message || "Failed to execute backtest query");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Generate dynamic equity curve paths from results signals
+  const getEquityCurvePaths = () => {
+    if (!results || !results.signals || results.signals.length === 0) {
+      // Fallback premium curve path
+      const line = "M 0 85 L 100 75 L 200 90 L 300 50 L 400 65 L 500 35 L 600 20";
+      const fill = `${line} L 600 120 L 0 120 Z`;
+      return { line, fill };
+    }
+
+    const trades = [...results.signals].reverse(); // cronological order
+    let cumulative = 100;
+    const equityValues = [cumulative];
+    
+    trades.forEach((trade: any) => {
+      cumulative += trade.pnl;
+      equityValues.push(cumulative);
+    });
+
+    const min = Math.min(...equityValues);
+    const max = Math.max(...equityValues);
+    const range = (max - min) || 1;
+
+    const width = 600;
+    const height = 120;
+    const padding = 15;
+    const graphHeight = height - padding * 2;
+
+    const points = equityValues.map((val, idx) => {
+      const x = (idx / (equityValues.length - 1)) * width;
+      const y = height - padding - ((val - min) / range) * graphHeight;
+      return { x, y };
+    });
+
+    const linePath = points.map((p, idx) => 
+      `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`
+    ).join(' ');
+
+    const fillPath = `${linePath} L ${width.toFixed(1)} ${height.toFixed(1)} L 0 ${height.toFixed(1)} Z`;
+
+    return { line: linePath, fill: fillPath };
+  };
+
+  const curve = results ? getEquityCurvePaths() : null;
+
   // Mobile Bottom Nav items list
   const navItems = [
-    { name: 'Dashboard', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-      </svg>
-    )},
-    { name: 'Watchlist', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.237.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-      </svg>
-    )},
-    { name: 'Backtest', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    )},
-    { name: 'Risk', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-    )},
-    { name: 'API', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    )},
+    { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { name: 'Watchlist', icon: <Star className="w-5 h-5" /> },
+    { name: 'Backtest', icon: <Activity className="w-5 h-5" /> },
+    { name: 'Risk', icon: <ShieldAlert className="w-5 h-5" /> },
+    { name: 'API', icon: <Terminal className="w-5 h-5" /> },
   ];
 
   return (
@@ -144,9 +227,16 @@ export default function BacktestPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-indigo text-white text-[13px] font-medium py-2 rounded-[6px] hover:bg-[#5254DE] transition-colors duration-150 leading-none mt-2 disabled:opacity-50"
+                className="w-full bg-indigo text-white text-[13px] font-medium py-2 rounded-[6px] hover:bg-[#5254DE] transition-colors duration-150 leading-none mt-2 disabled:opacity-50 flex items-center justify-center min-h-[36px]"
               >
-                {isLoading ? "Running..." : "Run backtest"}
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="spinner" />
+                    <span>Running...</span>
+                  </div>
+                ) : (
+                  "Run backtest"
+                )}
               </button>
             </form>
           </div>
@@ -154,27 +244,38 @@ export default function BacktestPage() {
           {/* Right Panel: Results View */}
           <div className="lg:col-span-2 space-y-6">
             {isLoading ? (
-              /* Loading Indicator */
-              <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px] animate-pulse">
-                <div className="h-6 w-32 bg-raised rounded-[6px] mx-auto mb-4" />
-                <div className="h-4 w-48 bg-raised rounded-[6px] mx-auto" />
+              /* Loading Skeleton state when running */
+              <div className="border border-border-dark bg-surface p-6 rounded-[6px] space-y-6">
+                <div className="h-[120px] bg-[#111318] border border-border-dark rounded-[6px] p-4 flex flex-col justify-center space-y-3 relative overflow-hidden">
+                  <div className="h-3 bg-raised rounded-[6px] w-[55%] shimmer-line" />
+                  <div className="h-3 bg-raised rounded-[6px] w-[75%] shimmer-line" />
+                  <div className="h-3 bg-raised rounded-[6px] w-[40%] shimmer-line" />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-surface border border-border-dark p-4 rounded-[6px] space-y-2 relative overflow-hidden">
+                      <div className="h-3 bg-raised rounded-[6px] w-[45%] shimmer-line" />
+                      <div className="h-8 bg-raised rounded-[6px] w-[70%] shimmer-line" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : error ? (
               /* Error Display */
               <div className="border border-sig-red/20 bg-sig-red/5 p-8 text-center rounded-[6px]">
                 <p className="text-[13px] text-sig-red font-sans font-medium">{error}</p>
               </div>
-            ) : results ? (
-              /* Backtesting Results */
-              <div className="space-y-6">
+            ) : results && curve ? (
+              /* Backtesting Results (with fadeIn animation class) */
+              <div className="space-y-6 animate-fade-in">
                 
-                {/* Stats Row */}
+                {/* Stats Row with CountUp animation */}
                 <div className="grid grid-cols-3 gap-4">
                   {/* Accuracy Card */}
                   <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
                     <div className="text-[12px] text-dim font-sans mb-1.5 font-normal leading-none">Signal accuracy</div>
                     <div className="text-[32px] font-mono font-medium text-frost leading-none">
-                      {results.accuracy}%
+                      <CountUp value={parseFloat(results.accuracy) || 0} decimalPlaces={0} suffix="%" />
                     </div>
                   </div>
 
@@ -182,7 +283,7 @@ export default function BacktestPage() {
                   <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
                     <div className="text-[12px] text-dim font-sans mb-1.5 font-normal leading-none">Win rate</div>
                     <div className="text-[32px] font-mono font-medium text-frost leading-none">
-                      {results.winRate}%
+                      <CountUp value={parseFloat(results.winRate) || 0} decimalPlaces={0} suffix="%" />
                     </div>
                   </div>
 
@@ -190,8 +291,43 @@ export default function BacktestPage() {
                   <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
                     <div className="text-[12px] text-dim font-sans mb-1.5 font-normal leading-none">Avg R:R</div>
                     <div className="text-[32px] font-mono font-medium text-frost leading-none">
-                      {results.avgRR}x
+                      <CountUp value={parseFloat(results.avgRR) || 0} decimalPlaces={1} suffix="x" />
                     </div>
+                  </div>
+                </div>
+
+                {/* Equity Curve SVG Chart */}
+                <div className="bg-[#111318] border border-border-dark rounded-[6px] p-4 flex flex-col justify-between h-[180px] overflow-hidden">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[11px] font-normal text-dim uppercase tracking-wider font-sans">Portfolio Equity Growth</span>
+                    <span className="text-[11px] font-mono text-sig-green font-medium">+{((results.winRate * results.avgRR) - ((100 - results.winRate) * 0.5)).toFixed(1)}% Est. Gain</span>
+                  </div>
+                  
+                  <div className="flex-1 relative w-full h-[120px]">
+                    <svg viewBox="0 0 600 120" width="100%" height="100%" preserveAspectRatio="none" className="block">
+                      <defs>
+                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#6366F1" stopOpacity="0.25"/>
+                          <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0"/>
+                        </linearGradient>
+                      </defs>
+                      {/* Gradient Fill under path */}
+                      <path 
+                        d={curve.fill} 
+                        fill="url(#chartGradient)" 
+                        className="animate-fill" 
+                      />
+                      {/* Stroke Line */}
+                      <path 
+                        d={curve.line} 
+                        fill="none" 
+                        stroke="#6366F1" 
+                        strokeWidth="1.5" 
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="animate-path" 
+                      />
+                    </svg>
                   </div>
                 </div>
 
@@ -244,15 +380,32 @@ export default function BacktestPage() {
 
               </div>
             ) : (
-              /* Initial Empty State */
-              <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px] flex flex-col items-center justify-center min-h-[220px]">
-                <svg className="w-8 h-8 text-dim mb-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                <h3 className="text-[14px] font-medium text-frost mb-1 leading-none">Ready to Analyze</h3>
-                <p className="text-[12px] text-muted max-w-xs mx-auto leading-normal">
-                  Configure a ticker and date range in the parameter panel to compute strategy performance metrics.
-                </p>
+              /* Initial Empty state: Premium chart shimmer skeleton + side-by-side card skeletons */
+              <div className="border border-border-dark bg-surface p-6 rounded-[6px] space-y-6">
+                {/* Skeleton Chart */}
+                <div className="h-[120px] bg-[#111318] border border-border-dark rounded-[6px] p-4 flex flex-col justify-center space-y-3 relative overflow-hidden">
+                  <div className="h-3 bg-raised rounded-[6px] w-[45%] shimmer-line" />
+                  <div className="h-3 bg-raised rounded-[6px] w-[70%] shimmer-line" />
+                  <div className="h-3 bg-raised rounded-[6px] w-[30%] shimmer-line" />
+                </div>
+                
+                {/* Skeletons Stats Grid */}
+                <div className="grid grid-cols-3 gap-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-surface border border-border-dark p-4 rounded-[6px] space-y-2 relative overflow-hidden">
+                      <div className="h-3 bg-raised rounded-[6px] w-[50%] shimmer-line" />
+                      <div className="h-8 bg-raised rounded-[6px] w-[75%] shimmer-line" />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Guiding Helper Text */}
+                <div className="text-center pt-2">
+                  <h3 className="text-[14px] font-medium text-frost mb-1 font-sans">Ready to Analyze</h3>
+                  <p className="text-[12px] text-muted max-w-xs mx-auto font-sans leading-normal">
+                    Configure a ticker and date range in the parameter panel to compute strategy performance metrics.
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -278,6 +431,58 @@ export default function BacktestPage() {
           );
         })}
       </nav>
+
+      {/* Global CSS keyframes for custom animations */}
+      <style jsx global>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .spinner {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 2px solid #1E2230;
+          border-top-color: #6366F1;
+          animation: spin 700ms linear infinite;
+        }
+
+        @keyframes shimmer {
+          from { background-position: -200% 0; }
+          to { background-position: 200% 0; }
+        }
+        .shimmer-line {
+          background: linear-gradient(90deg, #1C1F28 25%, #252836 50%, #1C1F28 75%);
+          background-size: 200% auto;
+          animation: shimmer 1.5s infinite linear;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 400ms ease-out forwards;
+        }
+
+        @keyframes drawPath {
+          to { stroke-dashoffset: 0; }
+        }
+        .animate-path {
+          stroke-dasharray: 1000;
+          stroke-dashoffset: 1000;
+          animation: drawPath 1200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes fadeInFill {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fill {
+          animation: fadeInFill 800ms ease-out forwards;
+          animation-delay: 400ms;
+          opacity: 0;
+        }
+      `}</style>
     </div>
   );
 }

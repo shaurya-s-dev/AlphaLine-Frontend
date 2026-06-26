@@ -9,6 +9,32 @@ import { LayoutDashboard, Star, Activity, ShieldAlert, Terminal } from 'lucide-r
 export function DashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('Dashboard');
+  const [selectedMarket, setSelectedMarket] = useState<'All' | 'NSE' | 'BSE' | 'US'>('All');
+  const [minConfidence, setMinConfidence] = useState(50);
+  
+  // Dynamic signals data state
+  const [signals, setSignals] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Real-time states
+  const [wsStatus, setWsStatus] = useState<'connected' | 'reconnecting'>('reconnecting');
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
+  // Risk Calculator State
+  const [portfolioSize, setPortfolioSize] = useState('50000');
+  const [riskPercent, setRiskPercent] = useState('2');
+  const [selectedRiskTicker, setSelectedRiskTicker] = useState('RELIANCE.NS');
+
+  // Fallback mock signals if API is empty or offline
+  const fallbackMockSignals = [
+    { id: 'mock_1', ticker: 'RELIANCE.NS', market: 'NSE', signalType: 'BUY', confidence: 81, entry: 2847.50, stopLoss: 2790.00, target: 2960.00, timestamp: 'Just now' },
+    { id: 'mock_2', ticker: 'TCS.NS', market: 'NSE', signalType: 'SELL', confidence: 67, entry: 3850.00, stopLoss: 3920.00, target: 3710.00, timestamp: 'Just now' },
+    { id: 'mock_3', ticker: 'AAPL', market: 'US', signalType: 'BUY', confidence: 74, entry: 189.20, stopLoss: 185.00, target: 198.00, timestamp: 'Just now' },
+    { id: 'mock_4', ticker: 'INFY.NS', market: 'NSE', signalType: 'HOLD', confidence: 54, entry: 1420.00, stopLoss: 1450.00, target: 1360.00, timestamp: 'Just now' },
+    { id: 'mock_5', ticker: 'NVDA', market: 'US', signalType: 'BUY', confidence: 88, entry: 125.50, stopLoss: 120.00, target: 135.00, timestamp: 'Just now' },
+    { id: 'mock_6', ticker: 'HDFC.NS', market: 'NSE', signalType: 'SELL', confidence: 71, entry: 1650.00, stopLoss: 1680.00, target: 1590.00, timestamp: 'Just now' }
+  ];
 
   // Set page title tag on mount
   useEffect(() => {
@@ -43,27 +69,6 @@ export function DashboardPage() {
       router.push('/api-docs');
     }
   };
-  const [selectedMarket, setSelectedMarket] = useState<'All' | 'NSE' | 'BSE' | 'US'>('All');
-  const [minConfidence, setMinConfidence] = useState(50);
-  
-  // Dynamic signals data state
-  const [signals, setSignals] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Risk Calculator State
-  const [portfolioSize, setPortfolioSize] = useState('50000');
-  const [riskPercent, setRiskPercent] = useState('2');
-  const [selectedRiskTicker, setSelectedRiskTicker] = useState('RELIANCE.NS');
-
-  // Navigation items for mobile bottom nav
-  const navItems = [
-    { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { name: 'Watchlist', icon: <Star className="w-5 h-5" /> },
-    { name: 'Backtest', icon: <Activity className="w-5 h-5" /> },
-    { name: 'Risk', icon: <ShieldAlert className="w-5 h-5" /> },
-    { name: 'API', icon: <Terminal className="w-5 h-5" /> },
-  ];
 
   // Fetch signals from our Next.js API route
   const fetchSignals = async (market: string, showLoadingIndicator = false) => {
@@ -79,20 +84,21 @@ export function DashboardPage() {
       }
       
       const data = await response.json();
-      if (data.success) {
+      if (data.success && data.signals && data.signals.length > 0) {
         setSignals(data.signals);
+        setIsDemoMode(false);
       } else {
-        setError(data.error || "Signal feed unavailable");
+        setSignals(fallbackMockSignals);
+        setIsDemoMode(true);
       }
     } catch (err: any) {
-      setError("Signal feed unavailable");
-      console.error("Error fetching signals:", err);
+      console.warn("Signal feed API error, using fallback mock data:", err);
+      setSignals(fallbackMockSignals);
+      setIsDemoMode(true);
     } finally {
       setIsLoading(false);
     }
   };
-
-  const [wsStatus, setWsStatus] = useState<'connected' | 'reconnecting'>('reconnecting');
 
   // WebSocket connection effect (runs once on mount)
   useEffect(() => {
@@ -132,9 +138,10 @@ export function DashboardPage() {
               };
 
               setSignals((prev) => {
-                // Avoid duplicates
-                if (prev.some((s) => s.id === newSignal.id)) return prev;
-                return [newSignal, ...prev];
+                const filtered = prev.filter(s => !s.id.startsWith('mock_'));
+                setIsDemoMode(false);
+                if (filtered.some((s) => s.id === newSignal.id)) return filtered;
+                return [newSignal, ...filtered];
               });
             }
           } catch (err) {
@@ -185,8 +192,53 @@ export function DashboardPage() {
 
   // Confidence slider filters client-side on the returned data
   const filteredSignals = signals.filter((sig) => {
-    return sig.confidence >= minConfidence;
+    const matchesMarket = selectedMarket === 'All' || sig.market === selectedMarket;
+    return matchesMarket && sig.confidence >= minConfidence;
   });
+
+  // Calculate dynamic stats
+  const displayedCount = filteredSignals.length;
+  const avgConfidence = displayedCount > 0 
+    ? Math.round(filteredSignals.reduce((acc, s) => acc + s.confidence, 0) / displayedCount) 
+    : 0;
+  const buyCount = filteredSignals.filter(s => s.signalType === 'BUY').length;
+  const sellCount = filteredSignals.filter(s => s.signalType === 'SELL').length;
+  const holdCount = filteredSignals.filter(s => s.signalType === 'HOLD').length;
+
+  // Render proper top status pill
+  const renderStatusPill = () => {
+    if (isDemoMode) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border border-border-dark bg-[#111318] text-muted text-[11px] font-medium font-sans">
+          <span className="w-1.5 h-1.5 rounded-full bg-dim" />
+          DEMO MODE
+        </span>
+      );
+    }
+    if (wsStatus === 'connected') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border border-sig-green/20 bg-sig-green/10 text-sig-green text-[11px] font-medium font-sans">
+          <span className="w-1.5 h-1.5 rounded-full bg-sig-green animate-pulse" />
+          LIVE
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border border-sig-amber/20 bg-sig-amber/10 text-sig-amber text-[11px] font-medium font-sans">
+        <span className="w-1.5 h-1.5 rounded-full bg-sig-amber animate-pulse" />
+        RECONNECTING
+      </span>
+    );
+  };
+
+  // Navigation items for mobile bottom nav
+  const navItems = [
+    { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { name: 'Watchlist', icon: <Star className="w-5 h-5" /> },
+    { name: 'Backtest', icon: <Activity className="w-5 h-5" /> },
+    { name: 'Risk', icon: <ShieldAlert className="w-5 h-5" /> },
+    { name: 'API', icon: <Terminal className="w-5 h-5" /> },
+  ];
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
@@ -200,28 +252,88 @@ export function DashboardPage() {
         {activeTab === 'Dashboard' && (
           <div>
             {/* Header */}
-            <div className="mb-8">
-              <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none flex items-center gap-2">
-                Confluence Signals
-                {wsStatus === 'connected' ? (
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-sig-green/20 bg-sig-green/5 text-sig-green text-[10px] font-bold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
-                    LIVE
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-sig-amber/20 bg-sig-amber/5 text-sig-amber text-[10px] font-bold">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
-                    RECONNECTING...
-                  </span>
-                )}
-              </h1>
-              <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-                Real-time AI-generated entry, stop-loss, and target levels.
-              </p>
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none flex items-center gap-2.5">
+                  Confluence Signals
+                  {renderStatusPill()}
+                </h1>
+                <p className="text-[13px] text-muted font-sans font-normal leading-normal">
+                  Real-time AI-generated entry, stop-loss, and target levels.
+                </p>
+              </div>
+
+              {/* Demo Mode Banner */}
+              {isDemoMode && (
+                <div className="bg-[#1C1F28] border border-[#F59E0B]/20 text-[#F59E0B] text-[11px] font-normal px-3 py-1.5 rounded-[6px] max-w-max">
+                  ● Demo mode — connect backend for live signals
+                </div>
+              )}
+            </div>
+
+            {/* Scrolling Ticker Tape */}
+            <div className="ticker-wrap w-full relative z-10 select-none mb-6 rounded-[6px] border border-border-dark">
+              <div className="ticker flex items-center h-full">
+                {/* First Set */}
+                <div className="flex items-center whitespace-nowrap">
+                  <span className="px-6 text-frost font-sans">RELIANCE.NS <span className="text-sig-green font-medium">▲ 81% BUY</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">TCS.NS <span className="text-sig-red font-medium">▼ 67% SELL</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">NVDA <span className="text-sig-green font-medium">▲ 88% BUY</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">AAPL <span className="text-sig-green font-medium">▲ 74% BUY</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">INFY.NS <span className="text-sig-amber font-medium">■ 54% HOLD</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">HDFC.NS <span className="text-sig-red font-medium">▼ 71% SELL</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                </div>
+                {/* Duplicate Set for Seamless Loop */}
+                <div className="flex items-center whitespace-nowrap">
+                  <span className="px-6 text-frost font-sans">RELIANCE.NS <span className="text-sig-green font-medium">▲ 81% BUY</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">TCS.NS <span className="text-sig-red font-medium">▼ 67% SELL</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">NVDA <span className="text-sig-green font-medium">▲ 88% BUY</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">AAPL <span className="text-sig-green font-medium">▲ 74% BUY</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">INFY.NS <span className="text-sig-amber font-medium">■ 54% HOLD</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                  <span className="px-6 text-frost font-sans">HDFC.NS <span className="text-sig-red font-medium">▼ 71% SELL</span></span>
+                  <span className="text-border-dark font-mono">·</span>
+                </div>
+              </div>
+              <style jsx>{`
+                @keyframes marquee {
+                  0% {
+                    transform: translate3d(0, 0, 0);
+                  }
+                  100% {
+                    transform: translate3d(-50%, 0, 0);
+                  }
+                }
+                .ticker-wrap {
+                  overflow: hidden;
+                  height: 32px;
+                  background-color: #0d0f14;
+                  display: flex;
+                  align-items: center;
+                }
+                .ticker {
+                  display: flex;
+                  width: max-content;
+                  animation: marquee 35s linear infinite;
+                }
+                .ticker:hover {
+                  animation-play-state: paused;
+                }
+              `}</style>
             </div>
 
             {/* Filter and Control Panel */}
-            <div className="bg-surface border border-border-dark p-4 rounded-[6px] mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="bg-surface border border-border-dark p-4 rounded-[6px] mb-4 flex flex-col md:flex-row md:items-center justify-between gap-6">
               {/* Market Filter Pills */}
               <div className="flex items-center gap-1.5">
                 {(['All', 'NSE', 'BSE', 'US'] as const).map((market) => (
@@ -257,6 +369,21 @@ export function DashboardPage() {
                   }}
                 />
               </div>
+            </div>
+
+            {/* Stats Bar */}
+            <div className="flex flex-wrap items-center gap-2 text-[12px] font-sans font-normal text-dim mb-6 select-none border-b border-border-dark/30 pb-3">
+              <span>{displayedCount} active setup{displayedCount !== 1 ? 's' : ''}</span>
+              <span className="text-border-dark font-mono">·</span>
+              <span>Avg confidence {avgConfidence}%</span>
+              <span className="text-border-dark font-mono">·</span>
+              <span>
+                <span className="text-sig-green font-medium">{buyCount} BUY</span>
+                {' · '}
+                <span className="text-sig-red font-medium">{sellCount} SELL</span>
+                {' · '}
+                <span className="text-sig-amber font-medium">{holdCount} HOLD</span>
+              </span>
             </div>
 
             {/* Signals Content Area */}
@@ -299,13 +426,13 @@ export function DashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : error ? (
+            ) : error && signals.length === 0 ? (
               /* Error State */
               <div className="border border-sig-red/20 bg-sig-red/5 p-8 text-center rounded-[6px]">
                 <p className="text-[13px] text-sig-red font-sans font-medium">{error}</p>
               </div>
             ) : filteredSignals.length > 0 ? (
-              /* Signals Grid */
+              /* Signals Grid with Staggered Load */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredSignals.map((signal, index) => (
                   <div
@@ -322,6 +449,7 @@ export function DashboardPage() {
                       target={signal.target}
                       timestamp={signal.timestamp}
                       isBlurred={index >= 4} // Cards beyond index 4 get blurred
+                      index={index}
                     />
                   </div>
                 ))}
@@ -356,212 +484,10 @@ export function DashboardPage() {
           </div>
         )}
 
-        {/* Render Backtest Tab */}
+        {/* Render Mock tabs for Dashboard (since actual tabs route elsewhere now) */}
         {activeTab === 'Backtest' && (
-          <div>
-            <div className="mb-8">
-              <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Strategy Backtests</h1>
-              <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-                Historical win rate and performance analytics of the confluence engine.
-              </p>
-            </div>
-
-            {/* Backtest Stats Row */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
-                <div className="text-[11px] text-dim font-sans mb-1 leading-none">Win Rate</div>
-                <div className="text-[20px] font-mono font-medium text-sig-green leading-none">73.8%</div>
-              </div>
-              <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
-                <div className="text-[11px] text-dim font-sans mb-1 leading-none">Avg Return</div>
-                <div className="text-[20px] font-mono font-medium text-frost leading-none">+4.92%</div>
-              </div>
-              <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
-                <div className="text-[11px] text-dim font-sans mb-1 leading-none">Total Trades</div>
-                <div className="text-[20px] font-mono font-medium text-frost leading-none">384</div>
-              </div>
-            </div>
-
-            {/* Historical Table */}
-            <div className="bg-surface border border-border-dark rounded-[6px] overflow-hidden">
-              <div className="border-b border-border-dark p-3 bg-[#131720]">
-                <span className="text-[12px] font-medium text-frost font-sans">Recent Performance Logs</span>
-              </div>
-              <div className="divide-y divide-[#1E2230]/50 font-sans">
-                {[
-                  { ticker: 'RELIANCE.NS', type: 'BUY', result: '+8.4%', status: 'PROFIT' },
-                  { ticker: 'AAPL', type: 'BUY', result: '+3.1%', status: 'PROFIT' },
-                  { ticker: 'TCS.NS', type: 'SELL', result: '+2.8%', status: 'PROFIT' },
-                  { ticker: 'HDFC.NS', type: 'SELL', result: '-1.5%', status: 'LOSS' },
-                ].map((log, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 text-[12px]">
-                    <div className="flex items-center gap-2">
-                      <span className="text-frost font-medium">{log.ticker}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-[4px] border ${
-                        log.type === 'BUY' ? 'border-sig-green/20 text-sig-green bg-sig-green/5' : 'border-sig-red/20 text-sig-red bg-sig-red/5'
-                      }`}>{log.type}</span>
-                    </div>
-                    <span className={`font-mono font-medium ${log.status === 'PROFIT' ? 'text-sig-green' : 'text-sig-red'}`}>
-                      {log.result}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Render Risk Tab */}
-        {activeTab === 'Risk' && (
-          <div>
-            <div className="mb-8">
-              <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Risk Management</h1>
-              <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-                Determine appropriate position sizes based on capital constraints and signal parameters.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Inputs */}
-              <div className="bg-surface border border-border-dark p-4 rounded-[6px] space-y-4">
-                <div>
-                  <label className="block text-[11px] text-dim font-sans mb-1.5">Capital Size ($ or ₹)</label>
-                  <input
-                    type="number"
-                    value={portfolioSize}
-                    onChange={(e) => setPortfolioSize(e.target.value)}
-                    className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-mono focus:outline-none focus:border-indigo"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-dim font-sans mb-1.5">Risk Per Trade (%)</label>
-                  <input
-                    type="number"
-                    value={riskPercent}
-                    onChange={(e) => setRiskPercent(e.target.value)}
-                    className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-mono focus:outline-none focus:border-indigo"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-dim font-sans mb-1.5">Select Signal Setup</label>
-                  <select
-                    value={selectedRiskTicker}
-                    onChange={(e) => setSelectedRiskTicker(e.target.value)}
-                    className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-sans focus:outline-none focus:border-indigo"
-                  >
-                    {signals.length > 0 ? (
-                      signals.slice(0, 4).map((sig) => (
-                        <option key={sig.ticker} value={sig.ticker}>
-                          {sig.ticker} ({sig.signalType})
-                        </option>
-                      ))
-                    ) : (
-                      <option value="RELIANCE.NS">RELIANCE.NS (BUY)</option>
-                    )}
-                  </select>
-                </div>
-              </div>
-
-              {/* Calculations */}
-              {(() => {
-                const activeSignal = signals.find((s) => s.ticker === selectedRiskTicker) || {
-                  ticker: 'RELIANCE.NS',
-                  signalType: 'BUY',
-                  confidence: 81,
-                  entry: 2847.50,
-                  stopLoss: 2790.00,
-                  target: 2960.00,
-                  timestamp: '2 min ago'
-                };
-                const cap = parseFloat(portfolioSize) || 0;
-                const riskDec = (parseFloat(riskPercent) || 0) / 100;
-                const riskAmount = cap * riskDec;
-                const diff = Math.abs(activeSignal.entry - activeSignal.stopLoss);
-                const posSize = diff > 0 ? riskAmount / diff : 0;
-                const totalCapital = posSize * activeSignal.entry;
-
-                return (
-                  <div className="bg-[#131720] border border-border-dark p-5 rounded-[6px] flex flex-col justify-between">
-                    <div>
-                      <h3 className="text-[13px] font-medium text-frost mb-4 font-sans">Allocation Calculation</h3>
-                      <div className="space-y-3 font-sans">
-                        <div className="flex justify-between items-center text-[12px]">
-                          <span className="text-muted">Total Risk Capital:</span>
-                          <span className="font-mono text-frost font-medium">{riskAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[12px]">
-                          <span className="text-muted">Stop Loss Distance:</span>
-                          <span className="font-mono text-frost font-medium">{diff.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[12px] border-t border-border-dark/50 pt-3 mt-3">
-                          <span className="text-muted">Recommended Position Size:</span>
-                          <span className="font-mono text-indigo font-semibold text-[14px]">{posSize.toFixed(1)} Shares</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[12px]">
-                          <span className="text-muted">Max Order Value:</span>
-                          <span className="font-mono text-frost font-medium">{totalCapital.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-6 text-[10px] text-muted font-sans bg-raised p-2 rounded-[6px] border border-border-dark/50">
-                      Recommendation limits risk per trade to {riskPercent}% of total portfolio value.
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        )}
-
-        {/* Render API Tab */}
-        {activeTab === 'API' && (
-          <div>
-            <div className="mb-8">
-              <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Developer API</h1>
-              <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-                Query confluence signals directly from your custom applications.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {/* API Credentials */}
-              <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
-                <h3 className="text-[13px] font-medium text-frost mb-3 font-sans">Your API Credentials</h3>
-                <div>
-                  <label className="block text-[11px] text-dim font-sans mb-1">Active Sandbox Key</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value="pk_sandbox_51M812hL9A1N91c01eN92b02"
-                      className="w-full bg-raised border border-border-dark text-[12px] text-muted p-2 rounded-[6px] font-mono focus:outline-none"
-                    />
-                    <button
-                      onClick={() => navigator.clipboard.writeText('pk_sandbox_51M812hL9A1N91c01eN92b02')}
-                      className="bg-indigo text-white text-[12px] font-medium px-4 rounded-[6px] hover:bg-[#5254DE] transition-colors duration-150 font-sans"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Endpoint Documentation */}
-              <div className="bg-surface border border-border-dark rounded-[6px] overflow-hidden">
-                <div className="border-b border-border-dark p-3 bg-[#131720]">
-                  <span className="text-[12px] font-medium text-frost font-sans">Query Signals Endpoint</span>
-                </div>
-                <div className="p-4 space-y-3 font-sans">
-                  <div className="flex gap-2 items-center">
-                    <span className="text-[10px] px-2 py-0.5 bg-[#22C55E]/10 border border-[#22C55E]/20 text-sig-green font-medium rounded-[4px] font-sans">GET</span>
-                    <span className="font-mono text-[12px] text-frost">https://api.alphaline.fi/v1/signals</span>
-                  </div>
-                  <p className="text-[12px] text-muted">
-                    Query the live signal database. Accepts parameters like <code className="text-frost font-mono text-[11px] bg-raised px-1 py-0.5 rounded-[4px]">market</code>, <code className="text-frost font-mono text-[11px] bg-raised px-1 py-0.5 rounded-[4px]">signal_type</code>, and <code className="text-frost font-mono text-[11px] bg-raised px-1 py-0.5 rounded-[4px]">min_confidence</code>.
-                  </p>
-                </div>
-              </div>
-            </div>
+          <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px]">
+            <p className="text-[13px] text-muted font-sans">Redirecting to Strategy Backtesting...</p>
           </div>
         )}
       </main>

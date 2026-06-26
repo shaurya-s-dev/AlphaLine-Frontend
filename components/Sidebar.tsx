@@ -15,6 +15,9 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [currentActive, setCurrentActive] = useState<string>('Dashboard');
+  
+  // Market Open/Closed status states
+  const [marketStatus, setMarketStatus] = useState({ nseOpen: false, usOpen: false });
 
   useEffect(() => {
     const getUser = async () => {
@@ -52,6 +55,37 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       setCurrentActive(activeTab);
     }
   }, [pathname, activeTab]);
+
+  // Market status checker effect
+  useEffect(() => {
+    const checkMarketStatus = () => {
+      const now = new Date();
+      
+      // NSE Open Mon-Fri 9:15 AM - 3:30 PM IST (Asia/Kolkata)
+      const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const istDay = istTime.getDay();
+      const istHour = istTime.getHours();
+      const istMin = istTime.getMinutes();
+      const istMinOfDay = istHour * 60 + istMin;
+      const isNseOpen = (istDay >= 1 && istDay <= 5) && 
+                         (istMinOfDay >= (9 * 60 + 15) && istMinOfDay <= (15 * 60 + 30));
+
+      // US Open Mon-Fri 9:30 AM - 4:00 PM EST/EDT (America/New_York)
+      const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+      const estDay = estTime.getDay();
+      const estHour = estTime.getHours();
+      const estMin = estTime.getMinutes();
+      const estMinOfDay = estHour * 60 + estMin;
+      const isUsOpen = (estDay >= 1 && estDay <= 5) && 
+                        (estMinOfDay >= (9 * 60 + 30) && estMinOfDay <= (16 * 60));
+
+      setMarketStatus({ nseOpen: isNseOpen, usOpen: isUsOpen });
+    };
+
+    checkMarketStatus();
+    const interval = setInterval(checkMarketStatus, 30000); // refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -106,9 +140,9 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   return (
     <aside className="w-[220px] h-screen fixed left-0 top-0 border-r border-border-dark bg-surface flex flex-col justify-between p-4 hidden md:flex z-20">
       <div>
-        {/* Logo */}
+        {/* Logo with logo-text class for blinking cursor */}
         <div className="flex items-center gap-2 px-2 py-3 mb-6 select-none">
-          <span className="font-brand text-[16px] font-semibold text-indigo tracking-[0.15em]">
+          <span className="logo-text font-brand text-[16px] font-semibold text-indigo tracking-[0.15em]">
             ALPHALINE
           </span>
         </div>
@@ -121,11 +155,16 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
               <button
                 key={item.name}
                 onClick={() => handleNavClick(item.name)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-[6px] transition-colors duration-150 font-sans ${
+                className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-[6px] transition-colors duration-150 font-sans border ${
                   isActive
-                    ? 'bg-raised text-frost border border-border-dark'
-                    : 'text-muted hover:text-frost hover:bg-[#131720] border border-transparent'
+                    ? 'text-frost border-border-dark'
+                    : 'text-muted hover:text-frost hover:bg-[#131720] border-transparent'
                 }`}
+                style={
+                  isActive
+                    ? { background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.12) 0%, transparent 100%)' }
+                    : {}
+                }
               >
                 <span className={isActive ? 'text-indigo' : 'text-muted'}>{item.icon}</span>
                 {item.name}
@@ -135,33 +174,72 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         </nav>
       </div>
 
-      {/* User Section */}
-      <div className="flex items-center justify-between border-t border-border-dark pt-4 px-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 bg-indigo text-white rounded-full flex items-center justify-center text-[11px] font-bold select-none flex-shrink-0">
-            {email[0]?.toUpperCase() || 'U'}
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-[12px] font-medium text-frost truncate leading-tight">
-              {email}
-            </span>
-            <span className="text-[10px] text-muted leading-tight">
-              Free Plan
-            </span>
+      {/* Bottom Area: Market Status + User Avatar Section */}
+      <div>
+        {/* Market Status Section */}
+        <div className="px-2 py-3 border-t border-border-dark mb-3 select-none">
+          <div className="flex items-center justify-between text-[11px] font-sans font-normal text-muted">
+            {/* NSE */}
+            <div className="flex items-center gap-1.5">
+              <span>NSE</span>
+              <span className={`w-[5px] h-[5px] rounded-full ${marketStatus.nseOpen ? 'bg-sig-green animate-pulse' : 'bg-sig-red'}`} />
+              <span className="text-frost">{marketStatus.nseOpen ? 'Open' : 'Closed'}</span>
+            </div>
+
+            <span className="text-[#1E2230] font-mono">·</span>
+
+            {/* US */}
+            <div className="flex items-center gap-1.5">
+              <span>US</span>
+              <span className={`w-[5px] h-[5px] rounded-full ${marketStatus.usOpen ? 'bg-sig-green animate-pulse' : 'bg-sig-red'}`} />
+              <span className="text-frost">{marketStatus.usOpen ? 'Open' : 'Closed'}</span>
+            </div>
           </div>
         </div>
 
-        {/* Sign Out Button */}
-        <button
-          onClick={handleSignOut}
-          className="text-muted hover:text-sig-red p-1 rounded-[6px] hover:bg-raised transition-colors duration-150"
-          title="Sign Out"
-        >
-          <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-        </button>
+        {/* User Section */}
+        <div className="flex items-center justify-between border-t border-border-dark pt-4 px-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 bg-indigo text-white rounded-full flex items-center justify-center text-[11px] font-bold select-none flex-shrink-0">
+              {email[0]?.toUpperCase() || 'U'}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[12px] font-medium text-frost truncate leading-tight">
+                {email}
+              </span>
+              <span className="text-[10px] text-muted leading-tight font-sans">
+                Free Plan
+              </span>
+            </div>
+          </div>
+
+          {/* Sign Out Button */}
+          <button
+            onClick={handleSignOut}
+            className="text-muted hover:text-sig-red p-1 rounded-[6px] hover:bg-raised transition-colors duration-150"
+            title="Sign Out"
+          >
+            <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Styled-JSX styling for Blinking Cursor and custom logo animations */}
+      <style jsx>{`
+        .logo-text::after {
+          content: '|';
+          animation: blink 1s step-end infinite;
+          color: #6366F1;
+          margin-left: 2px;
+        }
+
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+      `}</style>
     </aside>
   );
 }

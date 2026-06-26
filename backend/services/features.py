@@ -1,5 +1,5 @@
 import pandas as pd
-import pandas_ta as ta
+import ta
 import yfinance as yf
 from typing import Tuple
 
@@ -21,8 +21,8 @@ def compute_features(df: pd.DataFrame, ticker: str) -> dict:
     """
     Computes key trading features from OHLCV data.
     """
-    # 1. RSI (14 period)
-    rsi_series = df.ta.rsi(length=14)
+    # 1. RSI (14 period) — using ta library instead of pandas_ta
+    rsi_series = ta.momentum.RSIIndicator(close=df['Close'], window=14).rsi()
     rsi = float(rsi_series.iloc[-1]) if not rsi_series.empty and pd.notna(rsi_series.iloc[-1]) else 50.0
 
     # 2. Volume Delta (Current Volume / 20-day avg volume)

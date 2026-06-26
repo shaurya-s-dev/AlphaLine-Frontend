@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,17 +12,47 @@ from services.features import compute_features
 from services.model import generate_signal
 from services.dynamo import write_signal
 
-# Load local environment variables
 load_dotenv()
 
-app = FastAPI(title="Alphaline Signal Generation Engine", version="1.0.0")
+# Scheduler instance
+scheduler = BackgroundScheduler()
 
-# Enable CORS for localhost:3000 and custom Vercel URLs
+CORE_TICKERS = [
+    "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
+    "AAPL", "NVDA", "MSFT", "GOOGL", "AMZN", "TSLA"
+]
+
+def scheduled_signal_generation():
+    print("Executing scheduled batch signal generation...")
+    run_batch_pipeline(CORE_TICKERS)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    scheduler.add_job(
+        scheduled_signal_generation,
+        'interval',
+        minutes=15,
+        id='alphaline_seeding_job'
+    )
+    scheduler.start()
+    print("APScheduler background tasks initialized.")
+    yield
+    # Shutdown
+    scheduler.shutdown()
+    print("APScheduler shutdown completed.")
+
+app = FastAPI(
+    title="Alphaline Signal Generation Engine",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# CORS
 origins = [
     "http://localhost:3000",
     "https://localhost:3000",
 ]
-# Allow custom frontend domain from env if configured
 frontend_url = os.environ.get("FRONTEND_URL")
 if frontend_url:
     origins.append(frontend_url)
@@ -41,27 +72,17 @@ class GenerateRequest(BaseModel):
 class BatchGenerateRequest(BaseModel):
     tickers: List[str]
 
-# Core analysis pipeline
+# Core pipeline
 def run_pipeline_for_ticker(ticker: str) -> dict:
-    """
-    Runs the complete signal processing pipeline for a single ticker.
-    """
     try:
-        # 1. Fetch historical data (1 month of 15m intervals to calculate indicators)
         df = fetch_ohlcv(ticker, period="1mo", interval="15m")
-        
-        # 2. Compute indicators and features
         features = compute_features(df, ticker)
-        
-        # 3. Generate rule-based signals
         signal = generate_signal(ticker, features)
-        
-        # 4. Save signal in DynamoDB
         success = write_signal(signal)
-        
+
         if not success:
             raise Exception("Failed to write item to DynamoDB table")
-            
+
         return {
             "success": True,
             "ticker": ticker,
@@ -78,49 +99,16 @@ def run_pipeline_for_ticker(ticker: str) -> dict:
         }
     except Exception as e:
         print(f"Error executing signal pipeline for {ticker}: {e}")
-        return {
-            "success": False,
-            "ticker": ticker,
-            "error": str(e)
-        }
+        return {"success": False, "ticker": ticker, "error": str(e)}
 
 def run_batch_pipeline(tickers: List[str]) -> List[dict]:
-    """
-    Iterates over a list of tickers to generate and seed signals.
-    """
     results = []
     for ticker in tickers:
         print(f"Processing ticker: {ticker}")
-        res = run_pipeline_for_ticker(ticker)
-        results.append(res)
+        results.append(run_pipeline_for_ticker(ticker))
     return results
 
-# Ticker list for background processing
-CORE_TICKERS = [
-    "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
-    "AAPL", "NVDA", "MSFT", "GOOGL", "AMZN", "TSLA"
-]
-
-# Configure scheduler
-scheduler = BackgroundScheduler()
-
-def scheduled_signal_generation():
-    print("Executing scheduled batch signal generation...")
-    run_batch_pipeline(CORE_TICKERS)
-
-@app.on_event("startup")
-def start_scheduler():
-    # Run the generation job every 15 minutes
-    scheduler.add_job(scheduled_signal_generation, 'interval', minutes=15, id='alphaline_seeding_job')
-    scheduler.start()
-    print("APScheduler background tasks initialized.")
-
-@app.on_event("shutdown")
-def stop_scheduler():
-    scheduler.shutdown()
-    print("APScheduler shutdown completed.")
-
-# API Endpoints
+# Endpoints
 @app.get("/health")
 def health():
     return {
