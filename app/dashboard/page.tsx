@@ -1,53 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import SignalCard from '@/components/SignalCard';
 
-// Mock data exactly as specified
-const signals = [
-  { id:1, ticker:'RELIANCE.NS', market:'NSE', 
-    signalType:'BUY' as const, confidence:81,
-    entry:2847.50, stopLoss:2790.00, target:2960.00,
-    timestamp:'2 min ago' },
-  { id:2, ticker:'TCS.NS', market:'NSE',
-    signalType:'SELL' as const, confidence:67,
-    entry:3540.00, stopLoss:3610.00, target:3390.00,
-    timestamp:'5 min ago' },
-  { id:3, ticker:'AAPL', market:'US',
-    signalType:'BUY' as const, confidence:74,
-    entry:189.20, stopLoss:184.50, target:197.00,
-    timestamp:'8 min ago' },
-  { id:4, ticker:'INFY.NS', market:'NSE',
-    signalType:'HOLD' as const, confidence:54,
-    entry:1820.00, stopLoss:1775.00, target:1890.00,
-    timestamp:'12 min ago' },
-  { id:5, ticker:'NVDA', market:'US',
-    signalType:'BUY' as const, confidence:88,
-    entry:124.60, stopLoss:119.00, target:134.00,
-    timestamp:'15 min ago' },
-  { id:6, ticker:'HDFC.NS', market:'NSE',
-    signalType:'SELL' as const, confidence:71,
-    entry:1640.00, stopLoss:1695.00, target:1570.00,
-    timestamp:'18 min ago' },
-];
-
-function DashboardPage() {
+export function DashboardPage() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [selectedMarket, setSelectedMarket] = useState<'All' | 'NSE' | 'BSE' | 'US'>('All');
   const [minConfidence, setMinConfidence] = useState(50);
+  
+  // Dynamic signals data state
+  const [signals, setSignals] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Risk Calculator State
   const [portfolioSize, setPortfolioSize] = useState('50000');
   const [riskPercent, setRiskPercent] = useState('2');
   const [selectedRiskTicker, setSelectedRiskTicker] = useState('RELIANCE.NS');
-
-  // Filter signals
-  const filteredSignals = signals.filter((sig) => {
-    const matchesMarket = selectedMarket === 'All' || sig.market === selectedMarket;
-    const matchesConfidence = sig.confidence >= minConfidence;
-    return matchesMarket && matchesConfidence;
-  });
 
   // Navigation items for mobile bottom nav
   const navItems = [
@@ -77,6 +47,50 @@ function DashboardPage() {
       </svg>
     )},
   ];
+
+  // Fetch signals from our Next.js API route
+  const fetchSignals = async (market: string, showLoadingIndicator = false) => {
+    try {
+      if (showLoadingIndicator) {
+        setIsLoading(true);
+      }
+      setError(null);
+      
+      const response = await fetch(`/api/signals?market=${market}`);
+      if (!response.ok) {
+        throw new Error("Signal feed unavailable");
+      }
+      
+      const data = await response.json();
+      if (data.success) {
+        setSignals(data.signals);
+      } else {
+        setError(data.error || "Signal feed unavailable");
+      }
+    } catch (err: any) {
+      setError("Signal feed unavailable");
+      console.error("Error fetching signals:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Re-fetch whenever selectedMarket changes
+  useEffect(() => {
+    fetchSignals(selectedMarket, true);
+
+    // Setup auto-refresh polling every 60 seconds
+    const interval = setInterval(() => {
+      fetchSignals(selectedMarket, false);
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [selectedMarket]);
+
+  // Confidence slider filters client-side on the returned data
+  const filteredSignals = signals.filter((sig) => {
+    return sig.confidence >= minConfidence;
+  });
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
@@ -136,8 +150,48 @@ function DashboardPage() {
               </div>
             </div>
 
-            {/* Signals Grid */}
-            {filteredSignals.length > 0 ? (
+            {/* Signals Content Area */}
+            {isLoading ? (
+              /* Loading Skeleton: 3 blurred card placeholders */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[1, 2, 3].map((idx) => (
+                  <div
+                    key={idx}
+                    className="relative w-full rounded-[6px] bg-surface border border-border-dark p-[14px_16px] animate-pulse blur-[1px] opacity-50"
+                  >
+                    <div className="flex justify-between items-center mb-3">
+                      <div className="h-4 w-24 bg-raised rounded-[6px]" />
+                      <div className="h-3.5 w-16 bg-raised rounded-[6px]" />
+                    </div>
+                    <div className="h-[2px] w-full bg-raised mb-4" />
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <div className="space-y-1">
+                        <div className="h-2 w-8 bg-raised rounded-[6px]" />
+                        <div className="h-3.5 w-12 bg-raised rounded-[6px]" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="h-2 w-12 bg-raised rounded-[6px]" />
+                        <div className="h-3.5 w-14 bg-raised rounded-[6px]" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="h-2 w-8 bg-raised rounded-[6px]" />
+                        <div className="h-3.5 w-12 bg-raised rounded-[6px]" />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div className="h-4 w-10 bg-raised rounded-[6px]" />
+                      <div className="h-3 w-14 bg-raised rounded-[6px]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : error ? (
+              /* Error State */
+              <div className="border border-sig-red/20 bg-sig-red/5 p-8 text-center rounded-[6px]">
+                <p className="text-[13px] text-sig-red font-sans font-medium">{error}</p>
+              </div>
+            ) : filteredSignals.length > 0 ? (
+              /* Signals Grid */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredSignals.map((signal, index) => (
                   <SignalCard
@@ -155,6 +209,7 @@ function DashboardPage() {
                 ))}
               </div>
             ) : (
+              /* Empty State */
               <div className="border border-border-dark bg-surface p-8 text-center rounded-[6px]">
                 <p className="text-[13px] text-muted font-sans">No signals match the current filters.</p>
               </div>
@@ -276,18 +331,30 @@ function DashboardPage() {
                     onChange={(e) => setSelectedRiskTicker(e.target.value)}
                     className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-sans focus:outline-none focus:border-indigo"
                   >
-                    {signals.slice(0, 4).map((sig) => (
-                      <option key={sig.ticker} value={sig.ticker}>
-                        {sig.ticker} ({sig.signalType})
-                      </option>
-                    ))}
+                    {signals.length > 0 ? (
+                      signals.slice(0, 4).map((sig) => (
+                        <option key={sig.ticker} value={sig.ticker}>
+                          {sig.ticker} ({sig.signalType})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="RELIANCE.NS">RELIANCE.NS (BUY)</option>
+                    )}
                   </select>
                 </div>
               </div>
 
               {/* Calculations */}
               {(() => {
-                const activeSignal = signals.find((s) => s.ticker === selectedRiskTicker) || signals[0];
+                const activeSignal = signals.find((s) => s.ticker === selectedRiskTicker) || {
+                  ticker: 'RELIANCE.NS',
+                  signalType: 'BUY',
+                  confidence: 81,
+                  entry: 2847.50,
+                  stopLoss: 2790.00,
+                  target: 2960.00,
+                  timestamp: '2 min ago'
+                };
                 const cap = parseFloat(portfolioSize) || 0;
                 const riskDec = (parseFloat(riskPercent) || 0) / 100;
                 const riskAmount = cap * riskDec;
