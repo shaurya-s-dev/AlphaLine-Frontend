@@ -31,7 +31,7 @@ def seed_data():
         {"ticker": "ICICIBANK.NS", "market": "NSE", "type": "BUY", "conf": 79, "entry": 1110.00, "sl": 1085.00, "tgt": 1150.00},
         {"ticker": "BHARTIARTL.NS", "market": "NSE", "type": "BUY", "conf": 85, "entry": 1420.00, "sl": 1390.00, "tgt": 1475.00},
         {"ticker": "SBIN.NS", "market": "NSE", "type": "HOLD", "conf": 58, "entry": 830.00, "sl": 810.00, "tgt": 860.00},
-        {"ticker": "LTIM.NS", "market": "NSE", "type": "SELL", "conf": 63, "entry": 4850.00, "sl": 4950.00, "tgt": 4650.00},
+        {"ticker": "LTIM.BO", "market": "NSE", "type": "SELL", "conf": 63, "entry": 4850.00, "sl": 4950.00, "tgt": 4650.00},
         
         # BSE Signals
         {"ticker": "SENSEX", "market": "BSE", "type": "BUY", "conf": 76, "entry": 77200.00, "sl": 76400.00, "tgt": 78500.00},

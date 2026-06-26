@@ -1,82 +1,37 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server'
 
-export const dynamic = "force-dynamic";
+const BACKEND = process.env.BACKEND_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')
 
-export async function POST(req: Request, { params }: { params: { path: string[] } }) {
+async function handler(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params
+  const endpoint = path.join('/')
+  const url = new URL(req.url)
+  const backendUrl = `http://${BACKEND}/${endpoint}${url.search}`
+  
+  console.log(`[Proxy] ${req.method} ${backendUrl}`)
+  
   try {
-    const backendHost = process.env.BACKEND_URL || "localhost:8080";
-    const baseUrl = backendHost.startsWith("http") ? backendHost : `http://${backendHost}`;
-    const targetUrl = `${baseUrl}/${params.path.join('/')}`;
+    const headers: HeadersInit = { 'Content-Type': 'application/json' }
+    const body = req.method !== 'GET' ? await req.text() : undefined
     
-    const body = await req.text();
+    const res = await fetch(backendUrl, {
+      method: req.method,
+      headers,
+      body,
+    })
     
-    console.log(`[Proxy POST] Target URL: ${targetUrl}`);
-    console.log(`[Proxy POST] Body payload: ${body}`);
+    const text = await res.text()
+    console.log(`[Proxy] Response ${res.status}: ${text.substring(0, 200)}`)
     
-    const res = await fetch(targetUrl, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json' 
-      },
-      body: body || undefined,
-    });
-    
-    const responseText = await res.text();
-    
-    console.log(`[Proxy POST] Target Status: ${res.status}`);
-    
-    if (!res.ok) {
-      console.error(`[Proxy POST Error] Elastic Beanstalk returned non-OK status: ${res.status}`);
-      console.error(`[Proxy POST Error] Error Payload: ${responseText}`);
-    }
-    
-    return new Response(responseText, { 
+    return new NextResponse(text, {
       status: res.status,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-  } catch (error: any) {
-    console.error("[Proxy POST Critical Error] Exception during proxying:", error);
-    return NextResponse.json({ 
-      error: "Proxy Connection Error", 
-      message: error.message || "Failed to reach backend",
-      details: error.stack || ""
-    }, { status: 500 });
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (err) {
+    console.error('[Proxy] Error:', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
 
-export async function GET(req: Request, { params }: { params: { path: string[] } }) {
-  try {
-    const backendHost = process.env.BACKEND_URL || "localhost:8080";
-    const baseUrl = backendHost.startsWith("http") ? backendHost : `http://${backendHost}`;
-    const url = new URL(req.url);
-    const targetUrl = `${baseUrl}/${params.path.join('/')}${url.search}`;
-    
-    console.log(`[Proxy GET] Target URL: ${targetUrl}`);
-    
-    const res = await fetch(targetUrl);
-    const responseText = await res.text();
-    
-    console.log(`[Proxy GET] Target Status: ${res.status}`);
-    
-    if (!res.ok) {
-      console.error(`[Proxy GET Error] Elastic Beanstalk returned non-OK status: ${res.status}`);
-      console.error(`[Proxy GET Error] Error Payload: ${responseText}`);
-    }
-    
-    return new Response(responseText, { 
-      status: res.status,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-  } catch (error: any) {
-    console.error("[Proxy GET Critical Error] Exception during proxying:", error);
-    return NextResponse.json({ 
-      error: "Proxy Connection Error", 
-      message: error.message || "Failed to reach backend",
-      details: error.stack || ""
-    }, { status: 500 });
-  }
-}
+export const GET = handler
+export const POST = handler

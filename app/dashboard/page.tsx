@@ -22,7 +22,7 @@ const CORE_TICKERS = [
   "BHARTIARTL.NS", "KOTAKBANK.NS", "LT.NS", "AXISBANK.NS", "ASIANPAINT.NS", "MARUTI.NS", "TITAN.NS", 
   "BAJFINANCE.NS", "WIPRO.NS", "ULTRACEMCO.NS", "NESTLEIND.NS", "POWERGRID.NS", "NTPC.NS", "SUNPHARMA.NS", 
   "TECHM.NS", "HCLTECH.NS", "DIVISLAB.NS", "DRREDDY.NS", "CIPLA.NS", "BRITANNIA.NS", "EICHERMOT.NS", 
-  "BAJAJFINSV.NS", "TATAMOTORS.NS", "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS", 
+  "BAJAJFINSV.NS", "TATAMOTORS.BO", "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS", 
   "BPCL.NS", "IOC.NS", "GRASIM.NS", "ADANIPORTS.NS", "INDUSINDBK.NS",
   // US Markets
   "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK-B", "JPM", "V", 
@@ -111,6 +111,36 @@ export default function DashboardPage() {
       toast.success(`Added ${ticker} to watchlist`);
     }
   };
+
+  const [watchlistSignals, setWatchlistSignals] = useState<any[]>([]);
+  const [isLoadingWatchlist, setIsLoadingWatchlist] = useState(false);
+
+  const fetchWatchlistSignals = async (showLoading = false) => {
+    if (watchlist.length === 0) {
+      setWatchlistSignals([]);
+      return;
+    }
+    try {
+      if (showLoading) setIsLoadingWatchlist(true);
+      const tickersQuery = watchlist.join(',');
+      const res = await fetch(`/api/signals?tickers=${tickersQuery}`);
+      if (!res.ok) throw new Error("Watchlist fetch failed");
+      const data = await res.json();
+      if (data.success && data.signals) {
+        setWatchlistSignals(data.signals);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch watchlist signals:", e);
+    } finally {
+      setIsLoadingWatchlist(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'Watchlist') {
+      fetchWatchlistSignals(watchlistSignals.length === 0);
+    }
+  }, [activeTab, watchlist]);
 
   // Mobile sidebar collapse state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -610,7 +640,7 @@ export default function DashboardPage() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Add stock symbol..."
+                      placeholder="Search ticker (e.g. RELIANCE.NS, AAPL)"
                       value={watchlistSearch}
                       onChange={(e) => {
                         setWatchlistSearch(e.target.value.toUpperCase());
@@ -673,15 +703,16 @@ export default function DashboardPage() {
                   className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                 >
                   {watchlist.map((ticker, index) => {
-                    const signal = signals.find(s => s.ticker === ticker) || {
+                    const signal = watchlistSignals.find(s => s.ticker === ticker) || 
+                                   signals.find(s => s.ticker === ticker) || {
                       id: `watchlist_mock_${ticker}`,
                       ticker: ticker,
-                      market: ticker.endsWith('.NS') || ticker === '^NSEI' ? 'NSE' : 'US',
+                      market: ticker.endsWith('.NS') || ticker.endsWith('.BO') || ticker === '^NSEI' ? 'NSE' : 'US',
                       signalType: ticker === '^NSEI' ? 'BUY' : (ticker.charCodeAt(0) % 2 === 0 ? 'BUY' : 'SELL'),
                       confidence: 65 + (ticker.charCodeAt(0) % 25),
-                      entry: ticker === '^NSEI' ? 22450.00 : (ticker.endsWith('.NS') ? 1200.00 : 150.00),
-                      stopLoss: ticker === '^NSEI' ? 22200.00 : (ticker.endsWith('.NS') ? 1176.00 : 147.00),
-                      target: ticker === '^NSEI' ? 22950.00 : (ticker.endsWith('.NS') ? 1248.00 : 156.00),
+                      entry: ticker === '^NSEI' ? 22450.00 : (ticker.endsWith('.NS') || ticker.endsWith('.BO') ? 1200.00 : 150.00),
+                      stopLoss: ticker === '^NSEI' ? 22200.00 : (ticker.endsWith('.NS') || ticker.endsWith('.BO') ? 1176.00 : 147.00),
+                      target: ticker === '^NSEI' ? 22950.00 : (ticker.endsWith('.NS') || ticker.endsWith('.BO') ? 1248.00 : 156.00),
                       timestamp: 'Just now'
                     };
                     return (

@@ -22,11 +22,14 @@ def fetch_ohlcv(ticker: str, period="1mo", interval="15m") -> pd.DataFrame:
             return df
 
     # Fetch fresh data
-    ticker_obj = yf.Ticker(ticker)
-    df = ticker_obj.history(period=period, interval=interval)
-    
-    if df.empty:
-        raise ValueError(f"No OHLCV data returned for ticker: {ticker}")
+    try:
+        ticker_obj = yf.Ticker(ticker)
+        df = ticker_obj.history(period=period, interval=interval)
+        if df.empty:
+            raise ValueError(f"No OHLCV data returned for ticker: {ticker}")
+    except Exception as e:
+        print(f"Warning: Failed to download yfinance data for {ticker}: {e}")
+        raise ValueError(f"yfinance download failed for {ticker}") from e
         
     # Store in cache
     _cache[cache_key] = (now, df)

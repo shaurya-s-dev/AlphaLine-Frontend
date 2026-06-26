@@ -49,16 +49,31 @@ export async function GET(request: Request) {
     const marketParam = searchParams.get("market") || "all";
     const typeParam = searchParams.get("type"); // Optional: BUY | SELL | HOLD
     const minConfidenceParam = searchParams.get("minConfidence"); // Optional
+    const tickersParam = searchParams.get("tickers"); // Optional: e.g. "AAPL,RELIANCE.BO"
     
     const minConfidence = minConfidenceParam ? parseInt(minConfidenceParam, 10) : 0;
     const tableName = process.env.DYNAMODB_TABLE_NAME || "alphaline-signals";
 
     let dbItems: any[] = [];
 
-    // Check if we query a specific market or scan all (case-insensitive check for "all")
-    const isSpecificMarket = marketParam.toLowerCase() !== "all" && marketParam.trim() !== "";
-
-    if (isSpecificMarket) {
+    if (tickersParam) {
+      const tickers = tickersParam.split(",").map(t => t.trim().toUpperCase()).filter(Boolean);
+      const queryPromises = tickers.map(async (ticker) => {
+        const queryParams = {
+          TableName: tableName,
+          KeyConditionExpression: "PK = :pk",
+          ExpressionAttributeValues: {
+            ":pk": `TICKER#${ticker}`,
+          },
+          ScanIndexForward: false, // Descending SK to get latest signal
+          Limit: 1,
+        };
+        const res = await docClient.send(new QueryCommand(queryParams));
+        return res.Items?.[0];
+      });
+      const queryResults = await Promise.all(queryPromises);
+      dbItems = queryResults.filter(Boolean);
+    } else if (marketParam.toLowerCase() !== "all" && marketParam.trim() !== "") {
       // 1. QUERY GSI (confidence-index)
       // PK: market (String)
       // SK: confidence_score (Number)
