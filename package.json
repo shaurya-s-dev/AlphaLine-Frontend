@@ -13,6 +13,7 @@
     "@aws-sdk/lib-dynamodb": "^3.1075.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "lucide-react": "^1.21.0",
     "next": "14.2.35",
     "react": "^18",
     "react-dom": "^18"

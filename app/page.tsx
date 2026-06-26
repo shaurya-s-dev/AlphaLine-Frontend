@@ -1,5 +1,23 @@
 import Link from "next/link";
 import SignalCard from "@/components/SignalCard";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Alphaline - AI-powered Trading Signals",
+  description: "AI-generated confluence signals for NSE, BSE and US equities.",
+  openGraph: {
+    title: "Alphaline - AI-powered Trading Signals",
+    description: "AI-generated confluence signals for NSE, BSE and US equities.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Alphaline Trading Platform",
+      }
+    ],
+  },
+};
 
 export default function Home() {
   return (
@@ -53,6 +71,11 @@ export default function Home() {
           <span>NSE/BSE/US</span>
           <span>·</span>
           <span>Free</span>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-16 text-[11px] font-sans font-normal text-dim select-none">
+          Built for H0 Hackathon
         </div>
       </div>
     </div>

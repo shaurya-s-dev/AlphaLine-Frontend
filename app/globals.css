@@ -12,3 +12,33 @@
 .font-mono {
   font-variant-numeric: tabular-nums;
 }
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 200ms ease-out forwards;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-bg {
+  background: linear-gradient(90deg, #111318 25%, #1C1F28 50%, #111318 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}

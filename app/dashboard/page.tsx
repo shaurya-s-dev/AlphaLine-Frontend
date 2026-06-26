@@ -3,9 +3,46 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import SignalCard from '@/components/SignalCard';
+import { useRouter } from 'next/navigation';
+import { LayoutDashboard, Star, Activity, ShieldAlert, Terminal } from 'lucide-react';
 
 export function DashboardPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('Dashboard');
+
+  // Set page title tag on mount
+  useEffect(() => {
+    document.title = "Alphaline — Signal Feed";
+  }, []);
+  
+  // URL tab syncing on mount and query changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab === 'Watchlist') {
+        setActiveTab('Watchlist');
+      } else {
+        setActiveTab('Dashboard');
+      }
+    }
+  }, []);
+
+  const handleNavClick = (tabName: string) => {
+    if (tabName === 'Dashboard') {
+      setActiveTab('Dashboard');
+      router.push('/dashboard');
+    } else if (tabName === 'Watchlist') {
+      setActiveTab('Watchlist');
+      router.push('/dashboard?tab=Watchlist');
+    } else if (tabName === 'Backtest') {
+      router.push('/backtest');
+    } else if (tabName === 'Risk') {
+      router.push('/risk');
+    } else if (tabName === 'API') {
+      router.push('/api-docs');
+    }
+  };
   const [selectedMarket, setSelectedMarket] = useState<'All' | 'NSE' | 'BSE' | 'US'>('All');
   const [minConfidence, setMinConfidence] = useState(50);
   
@@ -21,31 +58,11 @@ export function DashboardPage() {
 
   // Navigation items for mobile bottom nav
   const navItems = [
-    { name: 'Dashboard', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-      </svg>
-    )},
-    { name: 'Watchlist', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.36 1.237.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-      </svg>
-    )},
-    { name: 'Backtest', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    )},
-    { name: 'Risk', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-    )},
-    { name: 'API', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    )},
+    { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { name: 'Watchlist', icon: <Star className="w-5 h-5" /> },
+    { name: 'Backtest', icon: <Activity className="w-5 h-5" /> },
+    { name: 'Risk', icon: <ShieldAlert className="w-5 h-5" /> },
+    { name: 'API', icon: <Terminal className="w-5 h-5" /> },
   ];
 
   // Fetch signals from our Next.js API route
@@ -75,17 +92,96 @@ export function DashboardPage() {
     }
   };
 
-  // Re-fetch whenever selectedMarket changes
+  const [wsStatus, setWsStatus] = useState<'connected' | 'reconnecting'>('reconnecting');
+
+  // WebSocket connection effect (runs once on mount)
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
+
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "wss://placeholder-ws-url.execute-api.us-east-1.amazonaws.com/production";
+
+    const connectWS = () => {
+      try {
+        console.log(`Connecting to WebSocket: ${wsUrl}`);
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+          console.log("WebSocket connected successfully");
+          setWsStatus('connected');
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type === "SIGNAL_UPDATE" && message.data) {
+              const item = message.data;
+              const ticker = item.PK ? item.PK.replace(/^TICKER#/, "") : "UNKNOWN";
+              
+              const newSignal = {
+                id: item.PK + "_" + item.SK,
+                ticker: ticker,
+                market: item.market || "NSE",
+                signalType: item.signal_type || "BUY",
+                confidence: item.confidence_score ? parseInt(item.confidence_score, 10) : 50,
+                entry: item.entry_price ? parseFloat(item.entry_price) : 0,
+                stopLoss: item.stop_loss ? parseFloat(item.stop_loss) : 0,
+                target: item.target_price ? parseFloat(item.target_price) : 0,
+                timestamp: "Just now",
+                isNew: true, // Used for slide-in animation class
+              };
+
+              setSignals((prev) => {
+                // Avoid duplicates
+                if (prev.some((s) => s.id === newSignal.id)) return prev;
+                return [newSignal, ...prev];
+              });
+            }
+          } catch (err) {
+            console.error("Error parsing WebSocket message:", err);
+          }
+        };
+
+        socket.onclose = () => {
+          console.log("WebSocket disconnected. Retrying in 5 seconds...");
+          setWsStatus('reconnecting');
+          reconnectTimeout = setTimeout(connectWS, 5000);
+        };
+
+        socket.onerror = (err) => {
+          console.error("WebSocket error:", err);
+          socket?.close();
+        };
+
+      } catch (e) {
+        console.error("WebSocket connection setup error:", e);
+        setWsStatus('reconnecting');
+      }
+    };
+
+    connectWS();
+
+    return () => {
+      if (socket) socket.close();
+      clearTimeout(reconnectTimeout);
+    };
+  }, []);
+
+  // Fetch signals when selectedMarket changes, and set up 60s fallback polling if WS is disconnected
   useEffect(() => {
     fetchSignals(selectedMarket, true);
 
-    // Setup auto-refresh polling every 60 seconds
-    const interval = setInterval(() => {
-      fetchSignals(selectedMarket, false);
-    }, 60000);
+    let interval: NodeJS.Timeout | null = null;
+    if (wsStatus === 'reconnecting') {
+      interval = setInterval(() => {
+        fetchSignals(selectedMarket, false);
+      }, 60000);
+    }
 
-    return () => clearInterval(interval);
-  }, [selectedMarket]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [selectedMarket, wsStatus]);
 
   // Confidence slider filters client-side on the returned data
   const filteredSignals = signals.filter((sig) => {
@@ -95,7 +191,7 @@ export function DashboardPage() {
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
       {/* Sidebar for desktop */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={handleNavClick} />
 
       {/* Main Content Area */}
       <main className="flex-1 md:pl-[220px] p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto">
@@ -105,7 +201,20 @@ export function DashboardPage() {
           <div>
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Confluence Signals</h1>
+              <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none flex items-center gap-2">
+                Confluence Signals
+                {wsStatus === 'connected' ? (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-sig-green/20 bg-sig-green/5 text-sig-green text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
+                    LIVE
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-sig-amber/20 bg-sig-amber/5 text-sig-amber text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
+                    RECONNECTING...
+                  </span>
+                )}
+              </h1>
               <p className="text-[13px] text-muted font-sans font-normal leading-normal">
                 Real-time AI-generated entry, stop-loss, and target levels.
               </p>
@@ -152,35 +261,40 @@ export function DashboardPage() {
 
             {/* Signals Content Area */}
             {isLoading ? (
-              /* Loading Skeleton: 3 blurred card placeholders */
+              /* Loading Skeleton: 4 shimmer sweep card placeholders */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[1, 2, 3].map((idx) => (
+                {[1, 2, 3, 4].map((idx) => (
                   <div
                     key={idx}
-                    className="relative w-full rounded-[6px] bg-surface border border-border-dark p-[14px_16px] animate-pulse blur-[1px] opacity-50"
+                    className="relative w-full rounded-[6px] bg-surface border border-border-dark p-[14px_16px] overflow-hidden"
                   >
-                    <div className="flex justify-between items-center mb-3">
-                      <div className="h-4 w-24 bg-raised rounded-[6px]" />
-                      <div className="h-3.5 w-16 bg-raised rounded-[6px]" />
-                    </div>
-                    <div className="h-[2px] w-full bg-raised mb-4" />
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      <div className="space-y-1">
-                        <div className="h-2 w-8 bg-raised rounded-[6px]" />
-                        <div className="h-3.5 w-12 bg-raised rounded-[6px]" />
+                    {/* Shimmer overlay element */}
+                    <div className="absolute inset-0 shimmer-bg opacity-40 animate-pulse" />
+                    
+                    <div className="relative z-10 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <div className="h-4 w-20 bg-raised rounded-[6px]" />
+                        <div className="h-3.5 w-16 bg-raised rounded-[6px]" />
                       </div>
-                      <div className="space-y-1">
-                        <div className="h-2 w-12 bg-raised rounded-[6px]" />
-                        <div className="h-3.5 w-14 bg-raised rounded-[6px]" />
+                      <div className="h-[2px] w-full bg-raised rounded-full" />
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1.5">
+                          <div className="h-2 w-8 bg-raised rounded-[6px]" />
+                          <div className="h-3 w-12 bg-raised rounded-[6px]" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="h-2 w-10 bg-raised rounded-[6px]" />
+                          <div className="h-3 w-14 bg-raised rounded-[6px]" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="h-2 w-8 bg-raised rounded-[6px]" />
+                          <div className="h-3 w-12 bg-raised rounded-[6px]" />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <div className="h-2 w-8 bg-raised rounded-[6px]" />
-                        <div className="h-3.5 w-12 bg-raised rounded-[6px]" />
+                      <div className="flex justify-between items-center pt-1">
+                        <div className="h-3.5 w-10 bg-raised rounded-[6px]" />
+                        <div className="h-3 w-14 bg-raised rounded-[6px]" />
                       </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div className="h-4 w-10 bg-raised rounded-[6px]" />
-                      <div className="h-3 w-14 bg-raised rounded-[6px]" />
                     </div>
                   </div>
                 ))}
@@ -194,24 +308,28 @@ export function DashboardPage() {
               /* Signals Grid */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {filteredSignals.map((signal, index) => (
-                  <SignalCard
+                  <div
                     key={signal.id}
-                    ticker={signal.ticker}
-                    market={signal.market}
-                    signalType={signal.signalType}
-                    confidence={signal.confidence}
-                    entry={signal.entry}
-                    stopLoss={signal.stopLoss}
-                    target={signal.target}
-                    timestamp={signal.timestamp}
-                    isBlurred={index >= 4} // Cards beyond index 4 get blurred
-                  />
+                    className={signal.isNew ? "animate-slide-in" : ""}
+                  >
+                    <SignalCard
+                      ticker={signal.ticker}
+                      market={signal.market}
+                      signalType={signal.signalType}
+                      confidence={signal.confidence}
+                      entry={signal.entry}
+                      stopLoss={signal.stopLoss}
+                      target={signal.target}
+                      timestamp={signal.timestamp}
+                      isBlurred={index >= 4} // Cards beyond index 4 get blurred
+                    />
+                  </div>
                 ))}
               </div>
             ) : (
               /* Empty State */
-              <div className="border border-border-dark bg-surface p-8 text-center rounded-[6px]">
-                <p className="text-[13px] text-muted font-sans">No signals match the current filters.</p>
+              <div className="flex items-center justify-center p-8 min-h-[200px] w-full border border-border-dark bg-surface rounded-[6px]">
+                <p className="text-[14px] font-sans font-normal text-dim">No signals match your filters</p>
               </div>
             )}
           </div>
@@ -455,7 +573,7 @@ export function DashboardPage() {
           return (
             <button
               key={item.name}
-              onClick={() => setActiveTab(item.name)}
+              onClick={() => handleNavClick(item.name)}
               className={`flex flex-col items-center justify-center w-12 h-full transition-colors duration-150 ${
                 isActive ? 'text-indigo' : 'text-muted hover:text-frost'
               }`}

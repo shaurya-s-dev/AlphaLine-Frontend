@@ -2,15 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useRouter, usePathname } from 'next/navigation';
 
 export interface SidebarProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
+  activeTab?: string;
+  setActiveTab?: (tab: string) => void;
 }
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const [email, setEmail] = useState<string>('Loading...');
   const supabase = createClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [currentActive, setCurrentActive] = useState<string>('Dashboard');
 
   useEffect(() => {
     const getUser = async () => {
@@ -24,9 +28,51 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     getUser();
   }, []);
 
+  // Update active tab based on pathname and searchParams
+  useEffect(() => {
+    if (pathname === '/backtest') {
+      setCurrentActive('Backtest');
+    } else if (pathname === '/risk') {
+      setCurrentActive('Risk');
+    } else if (pathname === '/api-docs') {
+      setCurrentActive('API');
+    } else if (pathname === '/dashboard') {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        if (tab === 'Watchlist') {
+          setCurrentActive('Watchlist');
+        } else {
+          setCurrentActive('Dashboard');
+        }
+      } else {
+        setCurrentActive('Dashboard');
+      }
+    } else if (activeTab) {
+      setCurrentActive(activeTab);
+    }
+  }, [pathname, activeTab]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     window.location.href = '/login';
+  };
+
+  const handleNavClick = (tabName: string) => {
+    if (setActiveTab) {
+      setActiveTab(tabName);
+    }
+    if (tabName === 'Dashboard') {
+      router.push('/dashboard');
+    } else if (tabName === 'Watchlist') {
+      router.push('/dashboard?tab=Watchlist');
+    } else if (tabName === 'Backtest') {
+      router.push('/backtest');
+    } else if (tabName === 'Risk') {
+      router.push('/risk');
+    } else if (tabName === 'API') {
+      router.push('/api-docs');
+    }
   };
 
   const navItems = [
@@ -70,11 +116,11 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         {/* Navigation */}
         <nav className="space-y-1">
           {navItems.map((item) => {
-            const isActive = activeTab === item.name;
+            const isActive = currentActive === item.name;
             return (
               <button
                 key={item.name}
-                onClick={() => setActiveTab(item.name)}
+                onClick={() => handleNavClick(item.name)}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-[13px] font-medium rounded-[6px] transition-colors duration-150 font-sans ${
                   isActive
                     ? 'bg-raised text-frost border border-border-dark'
