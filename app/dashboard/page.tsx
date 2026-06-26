@@ -11,11 +11,18 @@ import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { StatsBar } from '@/components/StatsBar';
 import { SignalCard } from '@/components/SignalCard';
 import { SignalDrawer } from '@/components/SignalDrawer';
+import { TickerTape } from '@/components/TickerTape';
 import * as Slider from '@radix-ui/react-slider';
 
 const CORE_TICKERS = [
-  "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
-  "AAPL", "NVDA", "MSFT", "GOOGL", "AMZN", "TSLA"
+  "RELIANCE.NS", "TCS.NS", "INFY.NS", "WIPRO.NS",
+  "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "BAJFINANCE.NS",
+  "HINDUNILVR.NS", "MARUTI.NS", "SUNPHARMA.NS", "TATAMOTORS.NS",
+  "ADANIENT.NS", "LTIM.NS", "AXISBANK.NS", "KOTAKBANK.NS",
+  "TITAN.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS", "NESTLEIND.NS",
+  "AAPL", "NVDA", "MSFT", "GOOGL", "TSLA",
+  "META", "AMZN", "AMD", "NFLX", "CRM",
+  "ORCL", "INTC", "QCOM", "SHOP", "COIN"
 ];
 
 export default function DashboardPage() {
@@ -34,6 +41,9 @@ export default function DashboardPage() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [lastUpdated, setLastUpdated] = useState('N/A');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Market hours status
+  const [marketStatus, setMarketStatus] = useState({ nseOpen: false, usOpen: false });
 
   // Mobile sidebar collapse state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -70,6 +80,35 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Market status checker effect
+  useEffect(() => {
+    const checkMarketStatus = () => {
+      const now = new Date();
+      
+      const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+      const istDay = istTime.getDay();
+      const istHour = istTime.getHours();
+      const istMin = istTime.getMinutes();
+      const istMinOfDay = istHour * 60 + istMin;
+      const isNseOpen = (istDay >= 1 && istDay <= 5) && 
+                         (istMinOfDay >= (9 * 60 + 15) && istMinOfDay <= (15 * 60 + 30));
+
+      const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+      const estDay = estTime.getDay();
+      const estHour = estTime.getHours();
+      const estMin = estTime.getMinutes();
+      const estMinOfDay = estHour * 60 + estMin;
+      const isUsOpen = (estDay >= 1 && estDay <= 5) && 
+                        (estMinOfDay >= (9 * 60 + 30) && estMinOfDay <= (16 * 60));
+
+      setMarketStatus({ nseOpen: isNseOpen, usOpen: isUsOpen });
+    };
+
+    checkMarketStatus();
+    const interval = setInterval(checkMarketStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  
   // Keyboard Navigation shortcut listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -219,27 +258,6 @@ export default function DashboardPage() {
   const sellCount = filteredSignals.filter(s => s.signalType === 'SELL').length;
   const holdCount = filteredSignals.filter(s => s.signalType === 'HOLD').length;
 
-  // Render proper top status pill
-  const renderStatusPill = () => {
-    if (isDemoMode) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border border-border-dark bg-[#111318] text-muted text-[11px] font-medium font-sans">
-          <span className="w-1.5 h-1.5 rounded-full bg-dim" />
-          DEMO MODE
-        </span>
-      );
-    }
-    if (fetchSuccess) {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border border-sig-green/20 bg-sig-green/10 text-sig-green text-[11px] font-medium font-sans">
-          <span className="w-1.5 h-1.5 rounded-full bg-sig-green animate-pulse" />
-          LIVE
-        </span>
-      );
-    }
-    return null;
-  };
-
   return (
     <div className="h-screen w-screen overflow-hidden bg-void text-frost flex relative">
       {/* Background (z-0) */}
@@ -258,8 +276,8 @@ export default function DashboardPage() {
       {/* Main Content Pane (z-10) */}
       <div className="flex-1 flex flex-col h-full relative z-10 overflow-hidden md:pl-[220px]">
         
-        {/* Sleek Top Bar */}
-        <header className="h-[52px] border-b border-border-dark bg-[#111318]/50 backdrop-blur-md flex items-center justify-between px-6 gap-4">
+        {/* Upgraded Top Bar Header */}
+        <header className="h-[52px] border-b border-border-dark bg-[#111318]/50 backdrop-blur-md flex items-center justify-between px-6 gap-4 z-20">
           <div className="flex items-center gap-3">
             {/* Mobile Hamburger menu */}
             <button 
@@ -268,42 +286,50 @@ export default function DashboardPage() {
             >
               <Menu className="w-4 h-4" />
             </button>
-            <span className="font-brand text-[13px] text-muted tracking-widest uppercase select-none font-semibold">
-              Dashboard
+            <span className="font-brand text-[11px] text-[#374151] tracking-widest uppercase select-none font-semibold">
+              DASHBOARD
             </span>
           </div>
 
-          {/* Minimal scrolling ticker tape inside top bar header */}
-          <div className="flex-1 hidden sm:block max-w-[480px]">
-            <div className="overflow-hidden border border-border-dark rounded-[6px] h-7 flex items-center bg-void/50">
-              <div 
-                className="flex whitespace-nowrap"
-                style={{
-                  animation: 'scroll-left 25s linear infinite',
-                  width: 'max-content',
-                }}
-              >
-                {[...signals, ...signals].map((s, i) => (
-                  <span key={i} className="text-[10px] px-3 border-r border-border-dark font-sans flex items-center gap-1.5">
-                    <span className="text-frost font-semibold">{s.ticker}</span>
-                    <span 
-                      style={{ color: s.signalType === 'BUY' ? '#22C55E' : s.signalType === 'SELL' ? '#EF4444' : '#F59E0B' }} 
-                      className="font-mono font-medium"
-                    >
-                      {s.confidence}% {s.signalType}
-                    </span>
-                  </span>
-                ))}
+          {/* TickerTape component in the center */}
+          <div className="flex-1 hidden lg:block max-w-[450px] border border-border-dark rounded-[6px] overflow-hidden">
+            <TickerTape signals={signals} />
+          </div>
+
+          {/* Right Area: Market status pills + Live/Demo indicator */}
+          <div className="flex items-center gap-4 select-none">
+            {/* Market Status Pills */}
+            <div className="hidden sm:flex items-center gap-2.5">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border-dark bg-[#111318]/50">
+                <span 
+                  className="w-2 h-2 rounded-full" 
+                  style={{ backgroundColor: marketStatus.nseOpen ? '#22C55E' : '#374151' }} 
+                />
+                <span className="font-sans font-normal text-[11px] text-[#E2E8F0]">
+                  NSE: {marketStatus.nseOpen ? 'OPEN' : 'CLOSED'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border-dark bg-[#111318]/50">
+                <span 
+                  className="w-2 h-2 rounded-full" 
+                  style={{ backgroundColor: marketStatus.usOpen ? '#22C55E' : '#374151' }} 
+                />
+                <span className="font-sans font-normal text-[11px] text-[#E2E8F0]">
+                  US: {marketStatus.usOpen ? 'OPEN' : 'CLOSED'}
+                </span>
               </div>
             </div>
-          </div>
 
-          {/* Right Area: Status Indicator & Timestamp */}
-          <div className="flex items-center gap-4 select-none">
-            {renderStatusPill()}
-            <span className="font-mono text-[10px] text-muted hidden xs:inline tracking-wider">
-              LAST FETCH: {lastUpdated}
-            </span>
+            {/* LIVE / DEMO Indicator */}
+            {isDemoMode ? (
+              <span className="font-sans font-medium text-[11px] text-[#F59E0B] flex items-center gap-1">
+                <span>○</span> DEMO
+              </span>
+            ) : (
+              <span className="font-sans font-medium text-[11px] text-[#22C55E] flex items-center gap-1">
+                <span className="animate-pulse">●</span> LIVE
+              </span>
+            )}
           </div>
         </header>
 
@@ -418,7 +444,6 @@ export default function DashboardPage() {
                       stopLoss={signal.stopLoss}
                       target={signal.target}
                       timestamp={signal.timestamp}
-                      isBlurred={index >= 4}
                       index={index}
                       onClick={() => {
                         setSelectedSignalForDrawer(signal);

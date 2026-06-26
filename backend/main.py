@@ -20,8 +20,16 @@ load_dotenv()
 scheduler = BackgroundScheduler()
 
 CORE_TICKERS = [
-    "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
-    "AAPL", "NVDA", "MSFT", "GOOGL", "AMZN", "TSLA"
+    # NSE/BSE (India)
+    "RELIANCE.NS", "TCS.NS", "INFY.NS", "WIPRO.NS",
+    "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "BAJFINANCE.NS",
+    "HINDUNILVR.NS", "MARUTI.NS", "SUNPHARMA.NS", "TATAMOTORS.NS",
+    "ADANIENT.NS", "LTIM.NS", "AXISBANK.NS", "KOTAKBANK.NS",
+    "TITAN.NS", "ULTRACEMCO.NS", "ASIANPAINT.NS", "NESTLEIND.NS",
+    # US Markets
+    "AAPL", "NVDA", "MSFT", "GOOGL", "TSLA",
+    "META", "AMZN", "AMD", "NFLX", "CRM",
+    "ORCL", "INTC", "QCOM", "SHOP", "COIN"
 ]
 
 def scheduled_signal_generation():
@@ -34,20 +42,16 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         scheduled_signal_generation,
         'interval',
-        minutes=15,
+        minutes=30,
         id='alphaline_seeding_job'
     )
     scheduler.start()
     print("APScheduler background tasks initialized.")
     
-    # Run immediate seeding on startup using the specified tickers
-    seeding_tickers = [
-        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
-        "AAPL", "NVDA", "MSFT", "GOOGL"
-    ]
-    print(f"Running startup batch signal generation for tickers: {seeding_tickers}")
+    # Run immediate seeding on startup using the specified 35 tickers
+    print(f"Running startup batch signal generation for tickers: {CORE_TICKERS}")
     try:
-        run_batch_pipeline(seeding_tickers)
+        run_batch_pipeline(CORE_TICKERS)
         print("Startup batch signal generation completed successfully.")
     except Exception as e:
         print(f"Error during startup signal seeding: {e}")

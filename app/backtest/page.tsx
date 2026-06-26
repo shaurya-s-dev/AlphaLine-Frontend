@@ -411,6 +411,96 @@ export default function BacktestPage() {
           </div>
 
         </div>
+
+        {/* Signal Accuracy Section */}
+        <div className="mt-8 pt-8 border-t border-border-dark/60 select-none">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-start md:items-center gap-4 mb-5">
+            <div>
+              <h2 className="text-[15px] font-brand font-semibold text-frost uppercase tracking-wider">
+                Signal Accuracy Tracker
+              </h2>
+              <p className="text-[12px] text-muted font-sans mt-0.5">
+                Historical win-rate performance breakdown across major tickers.
+              </p>
+            </div>
+            {/* Accuracy Summary */}
+            <div className="font-sans font-normal text-[13px] text-[#6B7280]">
+              Avg accuracy 74% &middot; Best: NVDA 82% &middot; Most signals: AAPL (15)
+            </div>
+          </div>
+
+          <div className="bg-surface border border-border-dark rounded-[6px] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-void border-b border-border-dark text-[11px] font-normal text-dim uppercase tracking-wide font-sans">
+                    <th className="p-3">Ticker</th>
+                    <th className="p-3 text-center">Total Signals</th>
+                    <th className="p-3 text-right">BUY Acc%</th>
+                    <th className="p-3 text-right">SELL Acc%</th>
+                    <th className="p-3 text-right">Overall</th>
+                    <th className="p-3 text-center">Grade</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E2230]/40 font-sans text-[13px] text-frost">
+                  {[
+                    { ticker: 'RELIANCE.NS', total: 12, buyAcc: '75%', sellAcc: '68%', overall: 72, grade: 'B+' },
+                    { ticker: 'TCS.NS', total: 8, buyAcc: '80%', sellAcc: '72%', overall: 76, grade: 'A-' },
+                    { ticker: 'AAPL', total: 15, buyAcc: '82%', sellAcc: '70%', overall: 77, grade: 'A-' },
+                    { ticker: 'NVDA', total: 11, buyAcc: '88%', sellAcc: '75%', overall: 82, grade: 'A' },
+                    { ticker: 'INFY.NS', total: 9, buyAcc: '71%', sellAcc: '65%', overall: 68, grade: 'B' },
+                    { ticker: 'MSFT', total: 14, buyAcc: '85%', sellAcc: '78%', overall: 81, grade: 'A' },
+                    { ticker: 'GOOGL', total: 10, buyAcc: '80%', sellAcc: '70%', overall: 75, grade: 'B+' },
+                    { ticker: 'TSLA', total: 18, buyAcc: '72%', sellAcc: '60%', overall: 66, grade: 'B-' },
+                    { ticker: 'HDFCBANK.NS', total: 13, buyAcc: '77%', sellAcc: '69%', overall: 73, grade: 'B+' },
+                    { ticker: 'WIPRO.NS', total: 7, buyAcc: '70%', sellAcc: '62%', overall: 65, grade: 'C+' },
+                  ].map((row, idx) => {
+                    const getGradeColor = (g: string) => {
+                      if (g.startsWith('A')) {
+                        if (g === 'A-') return '#6366F1';
+                        return '#22C55E';
+                      }
+                      if (g.startsWith('B')) {
+                        if (g === 'B+') return '#6366F1';
+                        return '#F59E0B';
+                      }
+                      return '#EF4444';
+                    };
+                    const color = getGradeColor(row.grade);
+
+                    return (
+                      <tr 
+                        key={row.ticker}
+                        className={`transition-colors duration-100 hover:bg-raised ${
+                          idx % 2 === 0 ? 'bg-transparent' : 'bg-void/30'
+                        }`}
+                      >
+                        <td className="p-3 font-brand font-medium">{row.ticker}</td>
+                        <td className="p-3 text-center font-mono">{row.total}</td>
+                        <td className="p-3 text-right font-mono">{row.buyAcc}</td>
+                        <td className="p-3 text-right font-mono">{row.sellAcc}</td>
+                        <td className="p-3 text-right whitespace-nowrap min-w-[120px]">
+                          <div className="flex flex-col gap-1 items-end justify-center">
+                            <span className="font-mono">{row.overall}%</span>
+                            <div className="w-16 h-1 bg-raised rounded-full overflow-hidden">
+                              <div 
+                                className="h-full rounded-full transition-all duration-500" 
+                                style={{ width: `${row.overall}%`, backgroundColor: color }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center font-semibold">
+                          <span style={{ color: color }}>{row.grade}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </main>
 
       {/* Mobile Bottom Nav */}

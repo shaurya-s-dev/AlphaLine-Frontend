@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import time
+import random
 from models.signal import Signal
 
 def get_market(ticker: str) -> str:
@@ -20,32 +21,51 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     rsi = features["rsi"]
     volume_delta = features["volume_delta"]
     momentum = features["momentum"]
+    price_position = features["price_position"]
     current_price = features["current_price"]
     
     market = get_market(ticker)
     
-    # Evaluate Rules
-    is_buy = rsi < 55 and volume_delta > 1.1 and momentum > -0.01
-    is_sell = rsi > 55 and volume_delta > 1.1 and momentum < 0.01
+    # BUY conditions (ANY two must be true)
+    buy_conds = [
+        rsi < 50,
+        volume_delta > 1.15,
+        momentum > 0.005,
+        price_position < 0.4
+    ]
+    buy_met = sum(1 for c in buy_conds if c)
+    is_buy = buy_met >= 2
+    
+    # SELL conditions (ANY two must be true)
+    sell_conds = [
+        rsi > 55,
+        volume_delta > 1.15,
+        momentum < -0.005,
+        price_position > 0.7
+    ]
+    sell_met = sum(1 for c in sell_conds if c)
+    is_sell = sell_met >= 2
     
     if is_buy:
         signal_type = "BUY"
-        confidence = int(min(95, 50 + (55 - rsi) * 1.5 + (volume_delta - 1) * 20 + momentum * 100))
+        raw_conf = 50 + (buy_met * 12) + max(0.0, (50.0 - rsi) * 0.5) + min(20.0, (volume_delta - 1.0) * 40.0)
+        confidence = max(51, min(92, int(raw_conf)))
         entry = current_price
         stop_loss = entry * 0.98
         target = entry * 1.04
         
     elif is_sell:
         signal_type = "SELL"
-        confidence = int(min(95, 50 + (rsi - 55) * 1.5 + (volume_delta - 1) * 20 + abs(momentum) * 100))
+        raw_conf = 50 + (sell_met * 12) + max(0.0, (rsi - 50.0) * 0.5) + min(20.0, (volume_delta - 1.0) * 40.0)
+        confidence = max(51, min(92, int(raw_conf)))
         entry = current_price
         stop_loss = entry * 1.02
         target = entry * 0.96
         
     else:
         signal_type = "HOLD"
-        confidence = 50
-        
+        raw_conf = 45 + random.randint(0, 15)
+        confidence = max(51, min(92, int(raw_conf)))
         entry = current_price
         stop_loss = entry * 0.99
         target = entry * 1.01
