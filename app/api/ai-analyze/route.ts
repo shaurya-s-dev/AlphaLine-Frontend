@@ -12,12 +12,13 @@ export async function POST(req: Request) {
       volumeDelta, 
       momentum, 
       news, 
-      newsSentiment 
+      newsSentiment,
+      newsSummary
     } = await req.json();
 
     const vDelta = volumeDelta || volume || 'N/A';
     const mntm = momentum || 'N/A';
-    const nSent = newsSentiment || news || 'Neutral';
+    const nSent = newsSentiment || news || newsSummary || 'Neutral';
 
     const systemPrompt = `You are ALPHA, an elite quantitative analyst and trading strategist with 20 years of experience in both Indian (NSE/BSE) and US equity markets. You combine technical analysis, fundamental analysis, institutional order flow, and market sentiment to generate precise, actionable trading insights.
 

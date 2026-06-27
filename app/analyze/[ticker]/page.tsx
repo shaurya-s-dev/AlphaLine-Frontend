@@ -15,6 +15,10 @@ function Typewriter({ text, speed = 15 }: { text: string; speed?: number }) {
   const [displayedText, setDisplayedText] = useState('');
 
   useEffect(() => {
+    if (!text) {
+      setDisplayedText('');
+      return;
+    }
     let index = 0;
     setDisplayedText('');
     const interval = setInterval(() => {
