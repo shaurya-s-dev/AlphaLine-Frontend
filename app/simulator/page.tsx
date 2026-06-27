@@ -189,18 +189,6 @@ export default function SimulatorPage() {
     toast.success(`${selectedSignalForTrade.signalType} entered — ${selectedSignalForTrade.ticker}`);
   };
 
-  useEffect(() => {
-    if (!selectedSignalForTrade) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectedSignalForTrade(null);
-      } else if (e.key === 'Enter') {
-        handleConfirmTrade();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedSignalForTrade, customAmountText, customEntryText, customSLText, customTargetText, balance, positions]);
 
   const handleClosePosition = (pos: Position) => {
     const exitPrice = pos.currentPrice;
