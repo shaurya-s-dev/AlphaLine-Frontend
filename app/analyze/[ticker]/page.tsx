@@ -9,6 +9,27 @@ import { Menu } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { ArrowLeft, ArrowUpRight, TrendingUp, ShieldAlert, Cpu, Sparkles, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import confetti from 'canvas-confetti';
+
+function Typewriter({ text, speed = 15 }: { text: string; speed?: number }) {
+  const [displayedText, setDisplayedText] = useState('');
+
+  useEffect(() => {
+    let index = 0;
+    setDisplayedText('');
+    const interval = setInterval(() => {
+      setDisplayedText((prev) => prev + text.charAt(index));
+      index++;
+      if (index >= text.length) {
+        clearInterval(interval);
+      }
+    }, speed);
+
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  return <>{displayedText}</>;
+}
 
 export default function AnalyzeTickerPage() {
   const { collapsed } = useSidebar();
@@ -170,6 +191,16 @@ export default function AnalyzeTickerPage() {
         });
         setAiAnalysis(parsed);
         toast.success("AI Technical analysis generated!");
+
+        // Trigger confetti for high-conviction BUY
+        const verdict = parseVerdict(parsed.verdict);
+        if (verdict && verdict.signal.toUpperCase().includes('BUY') && verdict.conviction.toUpperCase().includes('HIGH')) {
+          confetti({
+            particleCount: 120,
+            spread: 70,
+            origin: { y: 0.6 }
+          });
+        }
       } else {
         throw new Error(data.error || "Malformed completions output");
       }
@@ -186,6 +217,15 @@ export default function AnalyzeTickerPage() {
         risks: "Macro sector consolidation and earnings volatility present near-term risks."
       });
       toast.success("Local Technical analysis loaded!");
+
+      // If local signal is BUY and it has high confidence (>75)
+      if (signalType === 'BUY' && confidence >= 75) {
+        confetti({
+          particleCount: 120,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
     } finally {
       setIsAiLoading(false);
     }
@@ -567,7 +607,7 @@ export default function AnalyzeTickerPage() {
                         </div>
                         {verdictData.summary && (
                           <p className="text-[12px] text-muted leading-relaxed font-sans font-normal border-t border-border-dark/50 pt-3">
-                            {verdictData.summary.trim()}
+                            <Typewriter text={verdictData.summary.trim()} />
                           </p>
                         )}
                       </div>
