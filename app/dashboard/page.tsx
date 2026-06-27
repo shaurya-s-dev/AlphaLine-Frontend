@@ -301,7 +301,7 @@ export default function DashboardPage() {
     const toastId = toast.loading("Invoking ML pipeline to calculate indicators...");
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      const backendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080').replace('http://', 'https://')
       const response = await fetch(`${backendUrl}/generate-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
