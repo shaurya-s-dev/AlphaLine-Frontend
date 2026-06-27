@@ -116,8 +116,7 @@ export default function AnalyzeTickerPage() {
     const toastId = toast.loading("Invoking Llama-3.1 model to generate report...");
 
     try {
-      const summaryText = news.map(n => `[${n.sentiment}] ${n.title}`).join('
-');
+      const summaryText = news.map(n => `[${n.sentiment}] ${n.title}`).join('\n');
       
       const res = await fetch('/api/ai-analyze', {
         method: 'POST',

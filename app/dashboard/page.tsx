@@ -34,7 +34,7 @@ const CORE_TICKERS = [
   "JNJ", "WMT", "PG", "MA", "HD", "BAC", "XOM", "ABBV", "PFE", "AVGO",
   "AMD", "NFLX", "CRM", "COST", "TMO", "ACN", "DHR", "NEE", "UNH", "LIN",
   "SHOP", "SQ", "PLTR", "RBLX", "SNAP", "UBER", "LYFT", "ABNB", "COIN", "HOOD",
-  # Index
+  // Index
   "^NSEI"
 ];
 
@@ -52,8 +52,7 @@ function exportToCSV(signalsToExport: any[]) {
   ]);
   const csv = [headers, ...rows]
     .map(row => row.join(","))
-    .join("
-");
+    .join("\n");
   
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
