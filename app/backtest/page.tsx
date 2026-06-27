@@ -2,10 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { useSidebar } from '@/components/SidebarProvider';
+import { Menu } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { useRouter } from 'next/navigation';
 import { Activity, Play, TrendingUp, Award, Calendar, BarChart2, List } from 'lucide-react';
 import { toast } from 'sonner';
+import { InfoPanel } from '@/components/InfoPanel';
 
 // Count-up helper component
 function CountUp({ 
@@ -46,6 +49,8 @@ function CountUp({
 }
 
 export default function BacktestPage() {
+  const { collapsed } = useSidebar();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const router = useRouter();
   const [ticker, setTicker] = useState('RELIANCE.NS');
   
@@ -179,18 +184,32 @@ export default function BacktestPage() {
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
-      <Sidebar activeTab="Backtest" />
+      <Sidebar activeTab="Backtest" isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
       <AnimatedBackground />
 
-      <main className="flex-1 md:pl-[220px] p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto relative z-10">
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? 'md:pl-[64px]' : 'md:pl-[220px]'} p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto relative z-10`}>
         
         {/* Header */}
         <div className="mb-6 select-none">
-          <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Strategy Backtesting</h1>
+          <div className="flex items-center gap-3 mb-1.5">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)} 
+              className="md:hidden p-1.5 bg-raised border border-border-dark rounded-[6px] text-muted hover:text-frost"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <h1 className="text-[20px] font-medium text-frost font-sans leading-none mb-0">Strategy Backtesting</h1>
+          </div>
           <p className="text-[13px] text-muted font-sans font-normal leading-normal">
             Test how our AI signals would have performed on historical price data. Enter a ticker and date range to see simulated trade outcomes.
           </p>
         </div>
+
+        <InfoPanel title="How This Works">
+          <p>
+            <strong>Backtesting:</strong> Tests how the current signal model would have performed on historical data. The model is applied to past OHLCV data and each generated signal is evaluated for whether price hit the target or stop-loss first. This gives win rate, average R:R, and Sharpe ratio estimates. Note: backtest results are not a guarantee of future performance.
+          </p>
+        </InfoPanel>
 
         {/* Backtest Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

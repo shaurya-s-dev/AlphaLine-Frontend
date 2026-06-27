@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, LogOut, Menu, Settings } from 'lucide-react';
+import { X, LogOut, Menu, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MarketCountdown } from '@/components/MarketCountdown';
+import { useSidebar } from '@/components/SidebarProvider';
 
 export interface SidebarProps {
   activeTab?: string;
@@ -31,7 +32,7 @@ export function Sidebar({
   const router = useRouter();
   const pathname = usePathname();
   const [currentActive, setCurrentActive] = useState<string>('Dashboard');
-  const [marketStatus, setMarketStatus] = useState({ nseOpen: false, usOpen: false });
+  const { collapsed, setCollapsed } = useSidebar();
 
   useEffect(() => {
     const getUser = async () => {
@@ -73,37 +74,6 @@ export function Sidebar({
       setCurrentActive(activeTab);
     }
   }, [pathname, activeTab]);
-
-  // Market status checker effect
-  useEffect(() => {
-    const checkMarketStatus = () => {
-      const now = new Date();
-      
-      // NSE Open Mon-Fri 9:15 AM - 3:30 PM IST (Asia/Kolkata)
-      const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-      const istDay = istTime.getDay();
-      const istHour = istTime.getHours();
-      const istMin = istTime.getMinutes();
-      const istMinOfDay = istHour * 60 + istMin;
-      const isNseOpen = (istDay >= 1 && istDay <= 5) && 
-                         (istMinOfDay >= (9 * 60 + 15) && istMinOfDay <= (15 * 60 + 30));
-
-      // US Open Mon-Fri 9:30 AM - 4:00 PM EST/EDT (America/New_York)
-      const estTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-      const estDay = estTime.getDay();
-      const estHour = estTime.getHours();
-      const estMin = estTime.getMinutes();
-      const estMinOfDay = estHour * 60 + estMin;
-      const isUsOpen = (estDay >= 1 && estDay <= 5) && 
-                        (estMinOfDay >= (9 * 60 + 30) && estMinOfDay <= (16 * 60));
-
-      setMarketStatus({ nseOpen: isNseOpen, usOpen: isUsOpen });
-    };
-
-    checkMarketStatus();
-    const interval = setInterval(checkMarketStatus, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -173,149 +143,193 @@ export function Sidebar({
     )},
   ];
 
-  const renderContent = (isMobilePanel = false) => (
-    <div className="flex flex-col justify-between h-full w-full">
-      <div>
-        {/* Logo and Close Button (only for mobile modal panel) */}
-        <div className="flex items-center justify-between px-2 py-3 mb-6 select-none">
-          <span className="logo-text font-brand text-[16px] font-semibold text-indigo tracking-[0.15em] relative">
-            ALPHALINE
-          </span>
-          {isMobilePanel && onMobileClose && (
-            <button 
-              onClick={onMobileClose} 
-              className="text-muted hover:text-frost p-1 rounded-[6px] bg-raised border border-border-dark"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Navigation */}
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = currentActive === item.name;
-            return (
-              <motion.div
-                key={item.name}
-                whileHover={{ x: 3 }}
-                transition={{ duration: 0.15 }}
-                className="relative w-full"
+  const renderContent = (isMobilePanel = false) => {
+    const isCollapsedDesktop = collapsed && !isMobilePanel;
+    return (
+      <div className="flex flex-col justify-between h-full w-full">
+        <div>
+          {/* Logo and Close Button (only for mobile modal panel) */}
+          <div className="flex items-center justify-between px-2 py-3 mb-6 select-none">
+            <span className="logo-text font-brand text-[16px] font-semibold text-indigo tracking-[0.15em] relative">
+              {isCollapsedDesktop ? 'A' : 'ALPHALINE'}
+            </span>
+            {isMobilePanel && onMobileClose && (
+              <button 
+                onClick={onMobileClose} 
+                className="text-muted hover:text-frost p-1 rounded-[6px] bg-raised border border-border-dark"
               >
-                <button
-                  onClick={() => handleNavClick(item.name)}
-                  className={`w-full flex items-center gap-3 pl-4 pr-3 py-2 text-[13px] font-medium rounded-[6px] transition-colors duration-150 font-sans border relative overflow-hidden ${
-                    isActive
-                      ? 'text-frost border-border-dark bg-raised/30'
-                      : 'text-muted hover:text-frost hover:bg-[#131720] border-transparent'
-                  }`}
-                  style={
-                    isActive
-                      ? { background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.12) 0%, transparent 100%)' }
-                      : {}
-                  }
-                >
-                  {/* Left Border Scale-In animation on Active */}
-                  {isActive && (
-                    <motion.div 
-                      layoutId="active-border"
-                      className="absolute left-0 top-0 bottom-0 w-[3px] bg-indigo"
-                      initial={{ scaleY: 0 }}
-                      animate={{ scaleY: 1 }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  )}
-
-                  <span className={isActive ? 'text-indigo' : 'text-muted'}>
-                    {item.icon}
-                  </span>
-                  <span>{item.name}</span>
-                  
-                  {/* Signals Count Badge */}
-                  {counts && counts[item.name] !== undefined && counts[item.name] > 0 && (
-                    <span className="bg-[#1C1F28] border border-[#1E2230] text-[#6B7280] font-mono text-[10px] px-1.5 py-0.5 rounded-[4px] ml-auto select-none mr-1.5">
-                      {counts[item.name]}
-                    </span>
-                  )}
-
-                  {/* Shortcut key tag */}
-                  <kbd className={`text-[9px] text-[#374151] bg-[#1C1F28] border border-border-dark px-1.5 rounded font-mono font-normal ${counts && counts[item.name] !== undefined && counts[item.name] > 0 ? '' : 'ml-auto'}`}>
-                    {item.keyHint}
-                  </kbd>
-                </button>
-              </motion.div>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Bottom status + user info */}
-      <div className="space-y-3">
-        {onGenerateSignals && (
-          <button
-            onClick={onGenerateSignals}
-            disabled={isGenerating}
-            className="w-full bg-[#6366F1]/10 border border-[#6366F1]/20 text-[#6366F1] hover:bg-[#6366F1]/20 disabled:opacity-50 text-[11px] font-sans font-medium py-1.5 px-3 rounded-[6px] transition-colors flex items-center justify-center gap-1.5"
-          >
-            {isGenerating ? (
-              <>
-                <span className="w-2.5 h-2.5 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              <span>Generate Signals</span>
+                <X className="w-4 h-4" />
+              </button>
             )}
-          </button>
-        )}
-
-        {/* Market Status */}
-        <div className="px-2 py-3 border-t border-border-dark mb-3 select-none flex justify-center">
-          <MarketCountdown />
-        </div>
-
-        {/* User Card */}
-        <div className="flex items-center justify-between border-t border-border-dark pt-4 px-2">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 bg-indigo text-white rounded-full flex items-center justify-center text-[11px] font-bold select-none flex-shrink-0">
-              {email[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[12px] font-medium text-frost truncate leading-tight">
-                {email}
-              </span>
-              <span className="text-[10px] text-muted leading-tight font-sans">
-                Free Plan
-              </span>
-            </div>
           </div>
 
-          {/* Settings */}
-          <button
-            onClick={() => router.push('/settings')}
-            className="text-muted hover:text-indigo p-1 rounded-[6px] hover:bg-raised transition-colors duration-150 mr-1"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          {/* Navigation */}
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = currentActive === item.name;
+              return (
+                <motion.div
+                  key={item.name}
+                  whileHover={{ x: isCollapsedDesktop ? 0 : 3 }}
+                  transition={{ duration: 0.15 }}
+                  className="relative w-full"
+                >
+                  <button
+                    onClick={() => handleNavClick(item.name)}
+                    className={`w-full flex items-center ${isCollapsedDesktop ? 'justify-center px-2' : 'gap-3 pl-4 pr-3'} py-2 text-[13px] font-medium rounded-[6px] transition-colors duration-150 font-sans border relative overflow-hidden ${
+                      isActive
+                        ? 'text-frost border-border-dark bg-raised/30'
+                        : 'text-muted hover:text-frost hover:bg-[#131720] border-transparent'
+                    }`}
+                    style={
+                      isActive
+                        ? { background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.12) 0%, transparent 100%)' }
+                        : {}
+                    }
+                    title={isCollapsedDesktop ? item.name : undefined}
+                  >
+                    {/* Left Border Scale-In animation on Active */}
+                    {isActive && (
+                      <motion.div 
+                        layoutId="active-border"
+                        className="absolute left-0 top-0 bottom-0 w-[3px] bg-indigo"
+                        initial={{ scaleY: 0 }}
+                        animate={{ scaleY: 1 }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    )}
 
-          {/* Sign Out */}
-          <button
-            onClick={handleSignOut}
-            className="text-muted hover:text-sig-red p-1 rounded-[6px] hover:bg-raised transition-colors duration-150"
-            title="Sign Out"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+                    <span className={isActive ? 'text-indigo' : 'text-muted'}>
+                      {item.icon}
+                    </span>
+                    {!isCollapsedDesktop && <span>{item.name}</span>}
+                    
+                    {/* Signals Count Badge */}
+                    {!isCollapsedDesktop && counts && counts[item.name] !== undefined && counts[item.name] > 0 && (
+                      <span className="bg-[#1C1F28] border border-[#1E2230] text-[#6B7280] font-mono text-[10px] px-1.5 py-0.5 rounded-[4px] ml-auto select-none mr-1.5">
+                        {counts[item.name]}
+                      </span>
+                    )}
+
+                    {/* Shortcut key tag */}
+                    {!isCollapsedDesktop && (
+                      <kbd className={`text-[9px] text-[#374151] bg-[#1C1F28] border border-border-dark px-1.5 rounded font-mono font-normal ${counts && counts[item.name] !== undefined && counts[item.name] > 0 ? '' : 'ml-auto'}`}>
+                        {item.keyHint}
+                      </kbd>
+                    )}
+                  </button>
+                </motion.div>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Bottom status + user info */}
+        <div className="space-y-3">
+          {!isCollapsedDesktop && onGenerateSignals && (
+            <button
+              onClick={onGenerateSignals}
+              disabled={isGenerating}
+              className="w-full bg-[#6366F1]/10 border border-[#6366F1]/20 text-[#6366F1] hover:bg-[#6366F1]/20 disabled:opacity-50 text-[11px] font-sans font-medium py-1.5 px-3 rounded-[6px] transition-colors flex items-center justify-center gap-1.5"
+            >
+              {isGenerating ? (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full border-2 border-current border-t-transparent animate-spin inline-block" />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <span>Generate Signals</span>
+              )}
+            </button>
+          )}
+
+          {/* Market Status */}
+          {!isCollapsedDesktop && (
+            <div className="px-2 py-3 border-t border-border-dark mb-3 select-none flex justify-center">
+              <MarketCountdown />
+            </div>
+          )}
+
+          {/* User Card */}
+          {isCollapsedDesktop ? (
+            <div className="flex flex-col items-center gap-3 border-t border-border-dark pt-4 w-full">
+              <div className="w-7 h-7 bg-indigo text-white rounded-full flex items-center justify-center text-[11px] font-bold select-none flex-shrink-0" title={email}>
+                {email[0]?.toUpperCase() || 'U'}
+              </div>
+              <button
+                onClick={() => router.push('/settings')}
+                className="text-muted hover:text-indigo p-1 rounded-[6px] hover:bg-raised transition-colors duration-150"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleSignOut}
+                className="text-muted hover:text-sig-red p-1 rounded-[6px] hover:bg-raised transition-colors duration-150"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between border-t border-border-dark pt-4 px-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 bg-indigo text-white rounded-full flex items-center justify-center text-[11px] font-bold select-none flex-shrink-0">
+                  {email[0]?.toUpperCase() || 'U'}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[12px] font-medium text-frost truncate leading-tight">
+                    {email}
+                  </span>
+                  <span className="text-[10px] text-muted leading-tight font-sans">
+                    Free Plan
+                  </span>
+                </div>
+              </div>
+
+              {/* Settings */}
+              <button
+                onClick={() => router.push('/settings')}
+                className="text-muted hover:text-indigo p-1 rounded-[6px] hover:bg-raised transition-colors duration-150 mr-1"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+
+              {/* Sign Out */}
+              <button
+                onClick={handleSignOut}
+                className="text-muted hover:text-sig-red p-1 rounded-[6px] hover:bg-raised transition-colors duration-150"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <>
-      {/* 1. Desktop Sidebar (always visible, md:flex) */}
-      <aside className="w-[220px] h-screen fixed left-0 top-0 border-r border-border-dark bg-surface flex flex-col justify-between p-4 hidden md:flex z-20">
+      {/* 1. Desktop Sidebar */}
+      <motion.aside 
+        animate={{ width: collapsed ? 64 : 220 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+        className="h-screen fixed left-0 top-0 border-r border-border-dark bg-surface flex flex-col justify-between p-4 hidden md:flex z-20 overflow-visible"
+      >
         {renderContent(false)}
+
+        {/* Collapsible toggle button */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          title={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-5 h-5 bg-[#1C1F28] border border-[#1E2230] rounded-full flex items-center justify-center text-muted hover:text-frost cursor-pointer transition-all duration-300 z-50 hover:bg-[#111318]"
+        >
+          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
+
         <style jsx>{`
           .logo-text::after {
             content: '|';
@@ -328,13 +342,12 @@ export function Sidebar({
             50% { opacity: 0; }
           }
         `}</style>
-      </aside>
+      </motion.aside>
 
-      {/* 2. Mobile Collapsible Sidebar via AnimatePresence overlay */}
+      {/* 2. Mobile Collapsible Sidebar */}
       <AnimatePresence>
         {isMobileOpen && (
           <>
-            {/* Backdrop Layer */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
@@ -342,7 +355,6 @@ export function Sidebar({
               onClick={onMobileClose}
               className="fixed inset-0 bg-black z-40 md:hidden"
             />
-            {/* Mobile Drawer Panel */}
             <motion.aside
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}

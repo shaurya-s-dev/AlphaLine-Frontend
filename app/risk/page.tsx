@@ -2,10 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { useSidebar } from '@/components/SidebarProvider';
+import { Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { LayoutDashboard, Star, Activity, ShieldAlert, Terminal } from 'lucide-react';
+import { InfoPanel } from '@/components/InfoPanel';
 
 export default function RiskPage() {
+  const { collapsed } = useSidebar();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const router = useRouter();
   
   // State for user inputs
@@ -153,18 +158,32 @@ export default function RiskPage() {
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
       {/* Desktop Sidebar */}
-      <Sidebar activeTab="Risk" />
+      <Sidebar activeTab="Risk" isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
 
       {/* Main Content Area */}
-      <main className="flex-1 md:pl-[220px] p-6 pb-28 md:pb-6 max-w-5xl w-full mx-auto">
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? 'md:pl-[64px]' : 'md:pl-[220px]'} p-6 pb-28 md:pb-6 max-w-5xl w-full mx-auto`}>
         
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Risk Management</h1>
+          <div className="flex items-center gap-3 mb-1.5">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)} 
+              className="md:hidden p-1.5 bg-raised border border-border-dark rounded-[6px] text-muted hover:text-frost"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <h1 className="text-[20px] font-medium text-frost font-sans leading-none mb-0">Risk Management</h1>
+          </div>
           <p className="text-[13px] text-muted font-sans font-normal leading-normal">
             Compute precise position sizes, allocations, and stop-loss impact variables.
           </p>
         </div>
+
+        <InfoPanel title="How This Works">
+          <p>
+            <strong>Position sizing:</strong> Alphaline uses ATR-based position sizing. ATR (Average True Range) measures a stock's volatility over 14 days. Stop distance = ATR × multiplier. Shares = (Portfolio × Risk%) ÷ Stop Distance. This ensures each trade risks the same fixed % of your portfolio regardless of the stock's price. Allocation = Shares × Entry Price.
+          </p>
+        </InfoPanel>
 
         {/* Workspace Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -292,9 +311,31 @@ export default function RiskPage() {
 
               {isLoading ? (
                 /* Loading Skeleton */
-                <div className="p-4 space-y-3">
+                <div className="p-4 space-y-3 select-none">
+                  {/* Header Skeleton */}
+                  <div className="grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-2 opacity-30">
+                    <div className="h-3 bg-raised animate-pulse rounded-[4px] w-12" />
+                    <div className="h-3 bg-raised animate-pulse rounded-[4px] w-8" />
+                    <div className="h-3 bg-raised animate-pulse rounded-[4px] w-16 justify-self-end" />
+                    <div className="h-3 bg-raised animate-pulse rounded-[4px] w-12 justify-self-end" />
+                    <div className="h-3 bg-raised animate-pulse rounded-[4px] w-10 justify-self-end" />
+                    <div className="h-3 bg-raised animate-pulse rounded-[4px] w-6 justify-self-center" />
+                    <div className="h-3 bg-raised animate-pulse rounded-[4px] w-16 justify-self-end" />
+                  </div>
+                  {/* Row Skeletons */}
                   {[1, 2, 3].map((n) => (
-                    <div key={n} className="h-14 bg-raised animate-pulse rounded-[6px]" />
+                    <div 
+                      key={n} 
+                      className="grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-3.5 border border-border-dark/30 rounded-[6px]"
+                    >
+                      <div className="h-4 bg-raised animate-pulse rounded-[4px] w-16" />
+                      <div className="h-4 bg-raised animate-pulse rounded-[4px] w-8 bg-emerald-500/10" />
+                      <div className="h-4 bg-raised animate-pulse rounded-[4px] w-20 justify-self-end" />
+                      <div className="h-4 bg-raised animate-pulse rounded-[4px] w-16 justify-self-end" />
+                      <div className="h-4 bg-raised animate-pulse rounded-[4px] w-12 justify-self-end" />
+                      <div className="h-4 bg-raised animate-pulse rounded-[4px] w-8 justify-self-center" />
+                      <div className="h-4 bg-raised animate-pulse rounded-[4px] w-20 justify-self-end" />
+                    </div>
                   ))}
                 </div>
               ) : error ? (
@@ -304,23 +345,23 @@ export default function RiskPage() {
               ) : computedSignals.length > 0 ? (
                 /* CSS Grid layout fixed sizing columns */
                 <div className="overflow-x-auto">
-                  <div className="min-w-[720px] divide-y divide-[#1E2230]/50">
+                  <div className="min-w-[800px] divide-y divide-[#1E2230]/50">
                     {/* Header Row */}
-                    <div className="grid grid-cols-[120px_60px_1fr_1fr_80px_60px_1fr] items-center gap-4 px-4 py-3 bg-void">
-                      <div className="text-[10px] font-sans font-normal text-dim uppercase tracking-widest text-left">Ticker</div>
-                      <div className="text-[10px] font-sans font-normal text-dim uppercase tracking-widest text-left">Signal</div>
-                      <div className="text-[10px] font-sans font-normal text-dim uppercase tracking-widest text-right">Entry</div>
-                      <div className="text-[10px] font-sans font-normal text-dim uppercase tracking-widest text-right">Alloc</div>
-                      <div className="text-[10px] font-sans font-normal text-dim uppercase tracking-widest text-right">Shares</div>
-                      <div className="text-[10px] font-sans font-normal text-dim uppercase tracking-widest text-center">R:R</div>
-                      <div className="text-[10px] font-sans font-normal text-dim uppercase tracking-widest text-right">Max Loss</div>
+                    <div className="grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-3 bg-void">
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-left">Ticker</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-left">Signal</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Entry</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Alloc</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Shares</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-center">R:R</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Max Loss</div>
                     </div>
 
                     {/* Data Rows */}
                     {computedSignals.map((sig, idx) => (
                       <div
                         key={sig.id || idx}
-                        className={`grid grid-cols-[120px_60px_1fr_1fr_80px_60px_1fr] items-center gap-4 px-4 py-3.5 transition-colors duration-150 hover:bg-raised ${
+                        className={`grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-3.5 transition-colors duration-150 hover:bg-raised ${
                           idx % 2 === 0 ? 'bg-transparent' : 'bg-void/40'
                         }`}
                       >

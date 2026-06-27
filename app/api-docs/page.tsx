@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { useSidebar } from '@/components/SidebarProvider';
+import { Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
@@ -16,6 +18,8 @@ interface ApiKey {
 }
 
 export default function ApiDocsPage() {
+  const { collapsed } = useSidebar();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
@@ -166,15 +170,23 @@ export default function ApiDocsPage() {
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
-      <Sidebar activeTab="API" />
+      <Sidebar activeTab="API" isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
 
-      <main className="flex-1 md:pl-[220px] p-6 pb-28 md:pb-6 max-w-5xl w-full mx-auto space-y-6">
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? 'md:pl-[64px]' : 'md:pl-[220px]'} p-6 pb-28 md:pb-6 max-w-5xl w-full mx-auto space-y-6`}>
         
         {/* Header */}
         <div className="select-none space-y-2">
-          <h1 className="text-[20px] font-medium text-frost font-brand leading-none">
-            Developer API Hub
-          </h1>
+          <div className="flex items-center gap-3 mb-1.5">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)} 
+              className="md:hidden p-1.5 bg-raised border border-border-dark rounded-[6px] text-muted hover:text-frost"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <h1 className="text-[20px] font-medium text-frost font-brand leading-none mb-0">
+              Developer API Hub
+            </h1>
+          </div>
           <p className="text-[13px] text-muted font-sans font-normal leading-relaxed">
             The Alphaline API allows developers and fintechs to embed our AI-generated trading signals directly into their applications. Use our REST API to access real-time signals, historical backtests, and market data.
           </p>

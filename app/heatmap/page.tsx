@@ -2,13 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { useSidebar } from '@/components/SidebarProvider';
+import { Menu } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, LayoutGrid, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { InfoPanel } from '@/components/InfoPanel';
 
 export default function HeatmapPage() {
+  const { collapsed } = useSidebar();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const router = useRouter();
   const [signals, setSignals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -154,15 +159,23 @@ export default function HeatmapPage() {
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
-      <Sidebar activeTab="Heatmap" />
+      <Sidebar activeTab="Heatmap" isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
       <AnimatedBackground />
 
-      <main className="flex-1 md:pl-[220px] p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto relative z-10">
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? 'md:pl-[64px]' : 'md:pl-[220px]'} p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto relative z-10`}>
         
         {/* Header Title Section */}
         <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4 mb-6 select-none">
           <div className="flex flex-col gap-1">
-            <h1 className="text-[20px] font-medium text-frost font-sans leading-none">Market Heatmap</h1>
+            <div className="flex items-center gap-3 mb-1.5">
+              <button 
+                onClick={() => setIsMobileSidebarOpen(true)} 
+                className="md:hidden p-1.5 bg-raised border border-border-dark rounded-[6px] text-muted hover:text-frost"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+              <h1 className="text-[20px] font-medium text-frost font-sans leading-none mb-0">Market Heatmap</h1>
+            </div>
             <p className="text-[13px] text-muted font-sans font-normal leading-normal">
               Visual map of predictive confluence ratings across global sectors.
             </p>
@@ -174,6 +187,12 @@ export default function HeatmapPage() {
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Refresh Feed
           </button>
         </div>
+
+        <InfoPanel title="How This Works">
+          <p>
+            <strong>Sector heatmap:</strong> Each cell shows a stock's 1-day % price change. Green = positive, Red = negative. Intensity of color = magnitude of move. Sector groupings follow SEBI/NSE sector classifications. Use this to identify which sectors are leading or lagging the market on any given day.
+          </p>
+        </InfoPanel>
 
         {/* Stats Row */}
         <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[12px] flex flex-wrap gap-x-6 gap-y-2 mb-6 text-[12px] text-muted select-none">

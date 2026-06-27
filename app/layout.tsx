@@ -3,6 +3,7 @@ import { DM_Mono, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { SidebarProvider } from "@/components/SidebarProvider";
 import RootClientWrapper from "@/components/RootClientWrapper";
 
 const dmMono = DM_Mono({
@@ -41,9 +42,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} ${dmMono.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <RootClientWrapper>
-            {children}
-          </RootClientWrapper>
+          <SidebarProvider>
+            <RootClientWrapper>
+              {children}
+            </RootClientWrapper>
+          </SidebarProvider>
         </ThemeProvider>
       </body>
     </html>

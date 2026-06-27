@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star } from 'lucide-react';
+import { Star, Bell } from 'lucide-react';
+import { toast } from 'sonner';
 
 function FlipNumber({ value }: { value: number }) {
   return (
@@ -55,6 +56,26 @@ export function SignalCard({
   onWatchToggle,
 }: SignalCardProps) {
   const [ageSeconds, setAgeSeconds] = useState(0);
+
+  useEffect(() => {
+    if (confidence > 80) {
+      const enabled = localStorage.getItem('alphaline_notif_high_conf');
+      if (enabled === 'true') {
+        if (typeof window !== 'undefined') {
+          const win = window as any;
+          if (!win.toastedSignals) win.toastedSignals = new Set();
+          const signalKey = `${ticker}_${signalType}_${confidence}`;
+          if (!win.toastedSignals.has(signalKey)) {
+            win.toastedSignals.add(signalKey);
+            toast.success(`High confidence setup for ${ticker} (${confidence}%!)`, {
+              icon: <Bell className="w-4 h-4 text-indigo" />,
+              duration: 4000
+            });
+          }
+        }
+      }
+    }
+  }, [ticker, confidence, signalType]);
 
   // Parse relative timestamp to seconds
   const parseTimestampToSeconds = (ts: string): number => {
@@ -259,19 +280,19 @@ export function SignalCard({
         {/* Row 3: Metrics Grid */}
         <div className="grid grid-cols-3 gap-2 mb-3">
           <div>
-            <div className="font-sans text-[11px] text-dim font-normal mb-0.5 leading-none">Entry</div>
+            <div className="font-sans text-[11px] text-[#94A3B8] font-normal mb-0.5 leading-none">Entry</div>
             <div className="font-mono text-[13px] text-frost font-medium leading-none">
               {entry.toFixed(2)}
             </div>
           </div>
           <div>
-            <div className="font-sans text-[11px] text-dim font-normal mb-0.5 leading-none">Stop loss</div>
+            <div className="font-sans text-[11px] text-[#94A3B8] font-normal mb-0.5 leading-none">Stop loss</div>
             <div className="font-mono text-[13px] text-frost font-medium leading-none">
               {stopLoss.toFixed(2)}
             </div>
           </div>
           <div>
-            <div className="font-sans text-[11px] text-dim font-normal mb-0.5 leading-none">Target</div>
+            <div className="font-sans text-[11px] text-[#94A3B8] font-normal mb-0.5 leading-none">Target</div>
             <div className="font-mono text-[13px] text-frost font-medium leading-none">
               {target.toFixed(2)}
             </div>

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 
 function getMinutesToNextState(market: 'NSE' | 'NYSE', now: Date) {
   const timeZone = market === 'NSE' ? 'Asia/Kolkata' : 'America/New_York';
@@ -74,6 +75,9 @@ function getMarketStatus() {
 export function MarketCountdown() {
   const [status, setStatus] = useState<any>(null);
 
+  const prevNseOpenRef = useRef<boolean | null>(null);
+  const prevUsOpenRef = useRef<boolean | null>(null);
+
   useEffect(() => {
     setStatus(getMarketStatus());
     const timer = setInterval(() => {
@@ -81,6 +85,21 @@ export function MarketCountdown() {
     }, 60000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!status) return;
+    const enabled = localStorage.getItem('alphaline_notif_market_alerts');
+    if (enabled === 'true') {
+      if (prevNseOpenRef.current !== null && prevNseOpenRef.current !== status.nse.open) {
+        toast.info(`NSE Market has ${status.nse.open ? 'OPENED' : 'CLOSED'}`);
+      }
+      if (prevUsOpenRef.current !== null && prevUsOpenRef.current !== status.us.open) {
+        toast.info(`US Market has ${status.us.open ? 'OPENED' : 'CLOSED'}`);
+      }
+    }
+    prevNseOpenRef.current = status.nse.open;
+    prevUsOpenRef.current = status.us.open;
+  }, [status]);
 
   if (!status) {
     return (

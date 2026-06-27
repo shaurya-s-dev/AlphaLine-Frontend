@@ -2,10 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { useSidebar } from '@/components/SidebarProvider';
+import { Menu } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { toast } from 'sonner';
-import { TrendingUp, TrendingDown, Briefcase, RotateCcw, CheckCircle, Check, Search, X, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Briefcase, RotateCcw, CheckCircle, Check, Search, X, Activity, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { InfoPanel } from '@/components/InfoPanel';
 
 interface Position {
   id: string;
@@ -51,6 +54,8 @@ const MARKET_INDICES = [
 ];
 
 export default function SimulatorPage() {
+  const { collapsed } = useSidebar();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [signals, setSignals] = useState<any[]>([]);
   const [isLoadingSignals, setIsLoadingSignals] = useState(true);
@@ -184,6 +189,19 @@ export default function SimulatorPage() {
     toast.success(`${selectedSignalForTrade.signalType} entered — ${selectedSignalForTrade.ticker}`);
   };
 
+  useEffect(() => {
+    if (!selectedSignalForTrade) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedSignalForTrade(null);
+      } else if (e.key === 'Enter') {
+        handleConfirmTrade();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedSignalForTrade, customAmountText, customEntryText, customSLText, customTargetText, balance, positions]);
+
   const handleClosePosition = (pos: Position) => {
     const exitPrice = pos.currentPrice;
     const profit = pos.signalType === 'BUY'
@@ -231,10 +249,10 @@ export default function SimulatorPage() {
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
-      <Sidebar activeTab="Simulator" />
+      <Sidebar activeTab="Simulator" isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
       <AnimatedBackground />
 
-      <main className="flex-1 md:pl-[220px] px-4 pt-4 pb-24 md:pb-6 relative z-10 space-y-4 max-w-[1400px] w-full mx-auto">
+      <main className={`flex-1 transition-all duration-300 ${collapsed ? 'md:pl-[64px]' : 'md:pl-[220px]'} px-4 pt-4 pb-24 md:pb-6 relative z-10 space-y-4 max-w-[1400px] w-full mx-auto`}>
 
         {/* ── MARKET INDICES STRIP ── */}
         <div className="w-full overflow-x-auto scrollbar-none">
@@ -258,13 +276,27 @@ export default function SimulatorPage() {
         {/* ── HEADER + STATS ROW ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
+            <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)} 
+              className="md:hidden p-1.5 bg-raised border border-border-dark rounded-[6px] text-muted hover:text-frost"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
             <h1 className="text-[18px] font-medium text-frost leading-none">Paper Trading Simulator</h1>
+          </div>
             <p className="text-[12px] text-muted mt-0.5">Virtual portfolio · No real money</p>
           </div>
           <button onClick={handleReset} className="flex items-center gap-1.5 text-[#EF4444] text-[11px] bg-[#EF4444]/10 border border-[#EF4444]/20 px-3 py-1.5 rounded-[6px] transition-colors hover:border-[#EF4444]/50 self-start sm:self-auto">
             <RotateCcw className="w-3 h-3" /> Reset
           </button>
         </div>
+
+        <InfoPanel title="How This Works">
+          <p>
+            <strong>Paper trading:</strong> This is a virtual trading environment using real signal data but simulated money (₹1,00,000 starting balance). No real money is ever at risk. Positions update in price every 15 seconds using a simulated drift model. Close a position at any time to lock in your virtual P&L. Win rate and total P&L track your simulated performance over time.
+          </p>
+        </InfoPanel>
 
         {/* ── 4 STAT CARDS ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -296,9 +328,15 @@ export default function SimulatorPage() {
               </div>
 
               {positions.length === 0 ? (
-                <div className="py-10 text-center text-muted">
-                  <Activity className="w-6 h-6 mx-auto mb-2 opacity-30" />
-                  <p className="text-[12px]">No open positions — pick a signal on the right</p>
+                <div className="py-12 text-center text-muted select-none">
+                  <svg className="w-16 h-16 mx-auto mb-3 text-indigo/20" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="32" cy="32" r="30" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" />
+                    <path d="M16 40L24 32L32 38L48 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50" />
+                    <circle cx="48" cy="24" r="3" fill="currentColor" />
+                    <rect x="22" y="44" width="20" height="2" rx="1" fill="currentColor" className="opacity-30" />
+                  </svg>
+                  <p className="text-[12px] font-sans font-medium text-frost">No active positions</p>
+                  <p className="text-[11px] text-[#8892A4] mt-1 max-w-[220px] mx-auto">Select a BUY or SELL signal from the feed on the right to enter a virtual trade.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-border-dark/40">
@@ -394,7 +432,16 @@ export default function SimulatorPage() {
               </div>
 
               {closedTrades.length === 0 ? (
-                <div className="py-8 text-center text-muted text-[11px]">No completed trades yet.</div>
+                <div className="py-12 text-center text-muted select-none">
+                  <svg className="w-16 h-16 mx-auto mb-3 text-indigo/20" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="18" y="14" width="28" height="36" rx="3" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3" />
+                    <path d="M26 24H38M26 32H38M26 40H32" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <circle cx="48" cy="48" r="6" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M48 45V51" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                  <p className="text-[12px] font-sans font-medium text-frost">No trade history</p>
+                  <p className="text-[11px] text-[#8892A4] mt-1 max-w-[220px] mx-auto">Your closed trades will appear here once you exit open positions.</p>
+                </div>
               ) : (
                 <div>
                   <div className="overflow-x-auto">
@@ -470,23 +517,32 @@ export default function SimulatorPage() {
                 )}
               </div>
               {/* Filter pills */}
-              <div className="flex gap-1.5">
+              <div className="flex items-center bg-[#111318] border border-[#1E2230] rounded-full p-1 gap-0.5 select-none w-full">
                 {(['ALL', 'BUY', 'SELL'] as const).map(f => (
-                  <button key={f} onClick={() => setSignalFilter(f)}
-                    className={`text-[9px] font-bold px-2.5 py-0.5 rounded-full border transition-all ${
-                      signalFilter === f
-                        ? f === 'BUY' ? 'bg-[#22C55E]/20 border-[#22C55E] text-[#22C55E]'
-                          : f === 'SELL' ? 'bg-[#EF4444]/20 border-[#EF4444] text-[#EF4444]'
-                          : 'bg-[#6366F1]/20 border-[#6366F1] text-indigo'
-                        : 'border-border-dark text-muted hover:text-frost'
-                    }`}
-                  >{f}</button>
+                  <button
+                    key={f}
+                    onClick={() => setSignalFilter(f)}
+                    className={`flex-1 flex items-center justify-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-200
+                      ${signalFilter === f
+                        ? 'bg-[#1C2130] text-white border border-[#2A2F45]'
+                        : 'text-[#6B7280] hover:text-white'
+                      }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      signalFilter === f 
+                        ? f === 'BUY' ? 'bg-emerald-400' 
+                          : f === 'SELL' ? 'bg-rose-500' 
+                          : 'bg-indigo-400' 
+                        : 'bg-[#374151]'
+                    }`} />
+                    {f}
+                  </button>
                 ))}
               </div>
             </div>
 
             {/* Scrollable signal list */}
-            <div className="flex-1 overflow-y-auto divide-y divide-border-dark/30" style={{ scrollbarWidth: 'thin', scrollbarColor: '#1E2230 transparent' }}>
+            <div className="flex-1 overflow-y-auto max-h-[calc(100vh-200px)] divide-y divide-border-dark/30" style={{ scrollbarWidth: 'thin', scrollbarColor: '#1E2230 transparent' }}>
               {isLoadingSignals ? (
                 <div className="p-4 space-y-2">
                   {[1,2,3,4,5,6].map(i => (
@@ -527,86 +583,170 @@ export default function SimulatorPage() {
 
       {/* Trade Modal */}
       <AnimatePresence>
-        {selectedSignalForTrade && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.55 }} exit={{ opacity: 0 }}
-              onClick={() => setSelectedSignalForTrade(null)} className="fixed inset-0 bg-black z-40" />
-            <motion.div initial={{ scale: 0.96, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0, y: 12 }} transition={{ duration: 0.18 }}
-              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] max-w-[380px] bg-surface border border-border-dark rounded-[12px] p-5 z-50 text-frost font-sans shadow-2xl space-y-4"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-[13px] font-brand font-semibold text-frost uppercase tracking-widest">
-                    {selectedSignalForTrade.ticker}
-                  </h3>
-                  <button onClick={() => setSelectedSignalForTrade(null)} className="text-muted hover:text-frost">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="text-[10px] text-muted">
-                  Signal: <span className={selectedSignalForTrade.signalType === 'BUY' ? 'text-[#22C55E]' : 'text-[#EF4444]'}>{selectedSignalForTrade.signalType}</span>
-                  {' '}({selectedSignalForTrade.confidence}%) · {selectedSignalForTrade.market}
-                </p>
-              </div>
+        {selectedSignalForTrade && (() => {
+          const modalAmt = parseFloat(customAmountText) || 0;
+          const modalEnt = parseFloat(customEntryText) || 1;
+          const modalSl = parseFloat(customSLText) || 0;
+          const modalTgt = parseFloat(customTargetText) || 0;
 
-              <div className="space-y-2.5">
-                <div>
-                  <label className="text-[9px] text-muted uppercase font-semibold block mb-1.5">Investment Amount</label>
-                  <div className="flex gap-1.5 mb-1.5">
-                    {['1000','2000','5000','10000'].map(p => (
-                      <button key={p} onClick={() => setCustomAmountText(p)}
-                        className={`flex-1 py-1 rounded text-[10px] font-mono border transition-all ${customAmountText === p ? 'bg-[#6366F1] border-[#6366F1] text-white' : 'bg-void border-border-dark text-muted hover:text-frost'}`}>
-                        ₹{+p >= 1000 ? `${+p/1000}K` : p}
+          const sharesCount = modalEnt > 0 ? Math.floor(modalAmt / modalEnt) : 0;
+          const rrRatio = Math.max(0.01, Math.abs(modalEnt - modalSl)) > 0 
+            ? Math.abs(modalTgt - modalEnt) / Math.abs(modalEnt - modalSl) 
+            : 0;
+          const maxLoss = modalEnt > 0 
+            ? (Math.abs(modalEnt - modalSl) * modalAmt / modalEnt) 
+            : 0;
+          const cashAfter = balance - modalAmt;
+
+          const isSlExceeded = modalEnt > 0 && modalSl > 0 && (
+            selectedSignalForTrade.signalType === 'BUY' 
+              ? modalSl < modalEnt * 0.8 
+              : modalSl > modalEnt * 1.2
+          );
+
+          return (
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedSignalForTrade(null)} 
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" 
+              />
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  className="relative w-full max-w-[380px] bg-surface border border-border-dark rounded-[12px] p-5 text-frost font-sans shadow-2xl space-y-4"
+                >
+                  {/* Header */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-[14px] font-brand font-semibold text-frost uppercase tracking-widest leading-none">
+                          {selectedSignalForTrade.ticker}
+                        </h3>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-void border border-border-dark text-muted font-bold">
+                          {selectedSignalForTrade.market}
+                        </span>
+                        <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${
+                          selectedSignalForTrade.signalType === 'BUY' 
+                            ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400' 
+                            : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                        }`}>
+                          {selectedSignalForTrade.signalType}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => setSelectedSignalForTrade(null)} 
+                        className="p-1 rounded hover:bg-[#1E2230]/40 text-muted hover:text-frost transition-colors"
+                      >
+                        <X className="w-4 h-4" />
                       </button>
-                    ))}
-                  </div>
-                  <input type="text" value={customAmountText} onChange={e => setCustomAmountText(e.target.value)}
-                    className="w-full bg-void border border-border-dark text-[11px] text-frost p-2 rounded-[6px] font-mono focus:outline-none focus:border-indigo" />
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { label: 'Entry', val: customEntryText, set: setCustomEntryText },
-                    { label: 'Stop Loss', val: customSLText, set: setCustomSLText },
-                    { label: 'Target', val: customTargetText, set: setCustomTargetText },
-                  ].map(f => (
-                    <div key={f.label}>
-                      <label className="text-[9px] text-muted uppercase font-semibold block mb-1">{f.label}</label>
-                      <input type="text" value={f.val} onChange={e => f.set(e.target.value)}
-                        className="w-full bg-void border border-border-dark text-[11px] text-frost p-1.5 rounded-[4px] font-mono focus:outline-none focus:border-indigo" />
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-void border border-border-dark rounded-[6px] p-3 text-[10px] space-y-1.5 text-muted">
-                {[
-                  ['Shares', Math.floor((parseFloat(customAmountText) || 5000) / (parseFloat(customEntryText) || 1)).toString()],
-                  ['R:R', (Math.abs((parseFloat(customTargetText) || 0) - (parseFloat(customEntryText) || 0)) / Math.max(0.1, Math.abs((parseFloat(customEntryText) || 0) - (parseFloat(customSLText) || 0)))).toFixed(2) + 'x'],
-                  ['Max Loss', `₹${(Math.abs(parseFloat(customEntryText) - parseFloat(customSLText)) * (parseFloat(customAmountText) || 5000) / Math.max(0.01, parseFloat(customEntryText))).toFixed(0)}`],
-                  ['Cash After', `₹${(balance - (parseFloat(customAmountText) || 5000)).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between">
-                    <span>{k}</span>
-                    <span className="font-mono text-frost">{v}</span>
+                    <p className="text-[11px] text-[#A0AEC0] font-sans">
+                      Confluence confidence level: <span className="font-semibold text-indigo">{selectedSignalForTrade.confidence}%</span>
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              <div className="space-y-2">
-                <button onClick={handleConfirmTrade}
-                  className="w-full bg-[#6366F1] hover:bg-[#8183F4] text-white text-[12px] font-semibold py-2.5 rounded-[6px] transition-colors">
-                  Confirm Trade
-                </button>
-                <button onClick={() => setSelectedSignalForTrade(null)}
-                  className="w-full text-center text-muted hover:text-frost text-[10px] transition-colors">
-                  Cancel
-                </button>
+                  <div className="space-y-3">
+                    {/* Investment Amount */}
+                    <div>
+                      <label className="text-[9px] text-[#94A3B8] uppercase font-semibold block mb-1.5">Investment Amount</label>
+                      <div className="flex gap-1.5 mb-2">
+                        {['1000','2000','5000','10000'].map(p => (
+                          <button 
+                            key={p} 
+                            type="button"
+                            onClick={() => setCustomAmountText(p)}
+                            className={`flex-1 py-1.5 rounded-[6px] text-[11px] font-mono font-medium border transition-all duration-200 ${
+                              customAmountText === p 
+                                ? 'bg-indigo text-white border-indigo/40 shadow-lg shadow-indigo/20' 
+                                : 'bg-[#1C1F28] border-[#1E2230] text-[#A0AEC0] hover:text-frost hover:border-[#2A2F45]'
+                            }`}
+                          >
+                            ₹{+p >= 1000 ? `${+p/1000}K` : p}
+                          </button>
+                        ))}
+                      </div>
+                      <input 
+                        type="text" 
+                        value={customAmountText} 
+                        onChange={e => setCustomAmountText(e.target.value)}
+                        className="w-full bg-[#111318] border border-[#1E2230] text-[12px] text-frost px-3 py-2 rounded-[6px] font-mono focus:outline-none focus:border-indigo" 
+                      />
+                    </div>
+
+                    {/* Entry/SL/Target Grid */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: 'Entry', val: customEntryText, set: setCustomEntryText },
+                        { label: 'Stop Loss', val: customSLText, set: setCustomSLText },
+                        { label: 'Target', val: customTargetText, set: setCustomTargetText },
+                      ].map(f => (
+                        <div key={f.label}>
+                          <label className="text-[9px] text-[#94A3B8] uppercase font-semibold block mb-1">{f.label}</label>
+                          <input 
+                            type="text" 
+                            value={f.val} 
+                            onChange={e => f.set(e.target.value)}
+                            className="w-full bg-[#111318] border border-[#1E2230] text-[12px] text-frost px-2 py-1.5 rounded-[4px] font-mono focus:outline-none focus:border-indigo" 
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {isSlExceeded && (
+                      <div className="flex items-center gap-1.5 text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-[4px] mt-1 select-none">
+                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 animate-pulse" />
+                        <span>Warning: Stop Loss is set &gt; 20% from entry price.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary Box */}
+                  <div className="bg-[#111318]/50 border border-border-dark rounded-[8px] p-3 text-[11px] space-y-2 text-[#A0AEC0]">
+                    <div className="flex justify-between items-center">
+                      <span>Allocated Shares</span>
+                      <span className="font-mono font-semibold text-frost">{sharesCount}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Risk-Reward Ratio</span>
+                      <span className={`font-mono font-semibold ${rrRatio >= 2 ? 'text-emerald-400' : 'text-frost'}`}>{rrRatio.toFixed(2)}x</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Max Risk Exposure</span>
+                      <span className="font-mono font-semibold text-rose-400">₹{maxLoss.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-t border-border-dark/50 pt-1.5 mt-1.5">
+                      <span>Cash After Trade</span>
+                      <span className="font-mono font-semibold text-frost">₹{cashAfter.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pt-2">
+                    <motion.button 
+                      whileHover={{ scale: 1.01 }} 
+                      whileTap={{ scale: 0.99 }}
+                      onClick={handleConfirmTrade}
+                      className="w-full bg-indigo hover:bg-indigo-600 text-white text-[12px] font-semibold py-2.5 rounded-[6px] transition-all duration-200 shadow-lg shadow-indigo/20 flex items-center justify-center gap-1.5"
+                    >
+                      Confirm Trade
+                    </motion.button>
+                    <button 
+                      onClick={() => setSelectedSignalForTrade(null)}
+                      className="w-full text-center text-muted hover:text-frost text-[11px] transition-colors py-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </>
-        )}
+            </>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

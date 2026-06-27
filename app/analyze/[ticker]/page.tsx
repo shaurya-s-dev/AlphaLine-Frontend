@@ -3,11 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
+import { useSidebar } from '@/components/SidebarProvider';
+import { Menu } from 'lucide-react';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { ArrowLeft, ArrowUpRight, TrendingUp, ShieldAlert, Cpu, Sparkles, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AnalyzeTickerPage() {
+  const { collapsed } = useSidebar();
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const params = useParams();
@@ -208,13 +212,19 @@ export default function AnalyzeTickerPage() {
     <div className="h-screen w-screen overflow-hidden bg-void text-frost flex relative">
       <AnimatedBackground />
 
-      <Sidebar counts={{ 'Dashboard': 0, 'Watchlist': 0 }} />
+      <Sidebar counts={{ 'Dashboard': 0, 'Watchlist': 0 }} isMobileOpen={isMobileSidebarOpen} onMobileClose={() => setIsMobileSidebarOpen(false)} />
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden md:pl-[220px] relative z-10 select-none">
+      <main className={`flex-1 flex flex-col h-full overflow-hidden transition-all duration-300 ${collapsed ? 'md:pl-[64px]' : 'md:pl-[220px]'} relative z-10 select-none`}>
         
         {/* Header */}
         <header className="h-[52px] border-b border-border-dark bg-[#111318]/50 backdrop-blur-md flex items-center justify-between px-6 select-none">
           <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)} 
+              className="md:hidden p-1.5 bg-raised border border-border-dark rounded-[6px] text-muted hover:text-frost"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
             <span className="font-brand text-[11px] text-[#374151] tracking-widest uppercase font-semibold">
               AI STOCK SCANNER
             </span>
