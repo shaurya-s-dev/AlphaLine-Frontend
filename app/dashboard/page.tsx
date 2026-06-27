@@ -22,14 +22,19 @@ const CORE_TICKERS = [
   "BHARTIARTL.NS", "KOTAKBANK.NS", "LT.NS", "AXISBANK.NS", "ASIANPAINT.NS", "MARUTI.NS", "TITAN.NS", 
   "BAJFINANCE.NS", "WIPRO.NS", "ULTRACEMCO.NS", "NESTLEIND.NS", "POWERGRID.NS", "NTPC.NS", "SUNPHARMA.NS", 
   "TECHM.NS", "HCLTECH.NS", "DIVISLAB.NS", "DRREDDY.NS", "CIPLA.NS", "BRITANNIA.NS", "EICHERMOT.NS", 
-  "BAJAJFINSV.NS", "TATAMOTORS.BO", "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS", 
+  "BAJAJFINSV.NS", "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS", 
   "BPCL.NS", "IOC.NS", "GRASIM.NS", "ADANIPORTS.NS", "INDUSINDBK.NS",
+  // BSE Large Cap
+  "TATASTEEL.BO", "TATAMOTORS.BO", "WIPRO.BO", "RELIANCE.BO", "TCS.BO", 
+  "INFY.BO", "ICICIBANK.BO", "HDFCBANK.BO", "SBIN.BO", "BAJFINANCE.BO", 
+  "ADANIENT.BO", "MARUTI.BO", "SUNPHARMA.BO", "AXISBANK.BO", "KOTAKBANK.BO", 
+  "TITAN.BO", "HINDUNILVR.BO", "ULTRACEMCO.BO", "NESTLEIND.BO", "POWERGRID.BO",
   // US Markets
   "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "BRK-B", "JPM", "V", 
   "JNJ", "WMT", "PG", "MA", "HD", "BAC", "XOM", "ABBV", "PFE", "AVGO",
   "AMD", "NFLX", "CRM", "COST", "TMO", "ACN", "DHR", "NEE", "UNH", "LIN",
   "SHOP", "SQ", "PLTR", "RBLX", "SNAP", "UBER", "LYFT", "ABNB", "COIN", "HOOD",
-  // Index
+  # Index
   "^NSEI"
 ];
 
@@ -47,7 +52,8 @@ function exportToCSV(signalsToExport: any[]) {
   ]);
   const csv = [headers, ...rows]
     .map(row => row.join(","))
-    .join("\n");
+    .join("
+");
   
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -160,143 +166,53 @@ export default function DashboardPage() {
     { id:'m2', ticker:'TCS.NS', market:'NSE', 
       signalType:'SELL', confidence:67, entry:3850.00, 
       stopLoss:3920.00, target:3710.00, 
-      riskReward:2.0, timestamp:'5m ago' },
+      riskReward:1.9, timestamp:'4m ago' },
     { id:'m3', ticker:'AAPL', market:'US', 
       signalType:'BUY', confidence:74, entry:189.20, 
       stopLoss:185.00, target:198.00, 
-      riskReward:2.2, timestamp:'8m ago' },
+      riskReward:2.1, timestamp:'6m ago' },
     { id:'m4', ticker:'NVDA', market:'US', 
       signalType:'BUY', confidence:88, entry:125.50, 
       stopLoss:120.00, target:135.00, 
-      riskReward:1.9, timestamp:'11m ago' },
-    { id:'m5', ticker:'INFY.NS', market:'NSE', 
-      signalType:'HOLD', confidence:54, entry:1420.00, 
-      stopLoss:1450.00, target:1360.00, 
-      riskReward:1.0, timestamp:'14m ago' },
-    { id:'m6', ticker:'MSFT', market:'US', 
-      signalType:'BUY', confidence:79, entry:415.00, 
-      stopLoss:406.00, target:432.00, 
-      riskReward:1.9, timestamp:'17m ago' },
-    { id:'m7', ticker:'HDFCBANK.NS', market:'NSE', 
-      signalType:'SELL', confidence:71, entry:1640.00, 
-      stopLoss:1695.00, target:1570.00, 
-      riskReward:1.3, timestamp:'21m ago' },
-    { id:'m8', ticker:'GOOGL', market:'US', 
-      signalType:'BUY', confidence:76, entry:172.50, 
-      stopLoss:168.00, target:181.00, 
-      riskReward:2.1, timestamp:'24m ago' },
-    { id:'m9', ticker:'TATASTEEL.NS', market:'BSE', 
-      signalType:'BUY', confidence:63, entry:158.00, 
-      stopLoss:154.00, target:165.00, 
-      riskReward:1.8, timestamp:'28m ago' },
-    { id:'m10', ticker:'TSLA', market:'US', 
-      signalType:'SELL', confidence:69, entry:248.00, 
-      stopLoss:258.00, target:232.00, 
-      riskReward:1.6, timestamp:'31m ago' },
-    { id:'m11', ticker:'ICICIBANK.NS', market:'NSE', 
-      signalType:'BUY', confidence:82, entry:1285.00, 
-      stopLoss:1260.00, target:1340.00, 
-      riskReward:2.2, timestamp:'35m ago' },
-    { id:'m12', ticker:'META', market:'US', 
-      signalType:'BUY', confidence:85, entry:582.00, 
-      stopLoss:568.00, target:608.00, 
-      riskReward:1.9, timestamp:'38m ago' },
+      riskReward:1.7, timestamp:'9m ago' },
+    { id:'m5', ticker:'TATASTEEL.BO', market:'BSE', 
+      signalType:'BUY', confidence:62, entry:148.50, 
+      stopLoss:144.00, target:158.00, 
+      riskReward:2.1, timestamp:'12m ago' }
   ];
 
-  // Set page title tag on mount
-  useEffect(() => {
-    document.title = "Alphaline — Signal Feed";
-  }, []);
-  
-  // URL tab syncing on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab');
-      if (tab === 'Watchlist') {
-        setActiveTab('Watchlist');
-      } else {
-        setActiveTab('Dashboard');
-      }
-    }
-  }, []);
-  
-  // Keyboard Navigation shortcut listeners
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-        return;
-      }
-      const key = e.key.toLowerCase();
-      if (key === 'd') {
-        router.push('/dashboard');
-      } else if (key === 'w') {
-        router.push('/dashboard?tab=Watchlist');
-      } else if (key === 'b') {
-        router.push('/backtest');
-      } else if (key === 'r') {
-        router.push('/risk');
-      } else if (key === 'a') {
-        router.push('/api-docs');
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [router]);
-
-  const handleNavClick = (tabName: string) => {
-    if (tabName === 'Dashboard') {
-      setActiveTab('Dashboard');
-      router.push('/dashboard');
-    } else if (tabName === 'Watchlist') {
-      setActiveTab('Watchlist');
-      router.push('/dashboard?tab=Watchlist');
-    } else if (tabName === 'Backtest') {
-      router.push('/backtest');
-    } else if (tabName === 'Risk') {
-      router.push('/risk');
-    } else if (tabName === 'API') {
-      router.push('/api-docs');
-    }
-  };
-
-  // Fetch signals from our Next.js API route
-  const fetchSignals = async (market: string, showLoadingIndicator = false) => {
+  const fetchSignals = async (marketFilter = 'All', showLoading = false) => {
     try {
-      if (showLoadingIndicator) {
-        setIsLoading(true);
-      }
+      if (showLoading) setIsLoading(true);
       setError(null);
-      
-      const marketParam = market.toLowerCase() === 'all' ? 'all' : market;
-      const response = await fetch(`/api/signals?market=${marketParam}`);
+
+      let url = `/api/signals?market=${marketFilter.toLowerCase()}&limit=40`;
+      const response = await fetch(url);
       if (!response.ok) {
-        throw new Error("Signal feed unavailable");
+        throw new Error(`API responded with status ${response.status}`);
       }
-      
+
       const data = await response.json();
-      if (data.success && data.signals && data.signals.length > 0) {
-        // Save previous map first before updating
+      if (data.success && data.signals) {
+        // Map confidence trend indicators
         const prevMap: Record<string, number> = {};
-        signals.forEach(s => { prevMap[s.ticker] = s.confidence; });
+        signals.forEach(s => {
+          prevMap[s.ticker] = s.confidence;
+        });
         prevSignalsRef.current = prevMap;
 
         setSignals(data.signals);
-        setIsDemoMode(false);
         setFetchSuccess(true);
+        setIsDemoMode(false);
       } else {
-        const prevMap: Record<string, number> = {};
-        signals.forEach(s => { prevMap[s.ticker] = s.confidence; });
-        prevSignalsRef.current = prevMap;
-
-        setSignals(fallbackMockSignals);
-        setIsDemoMode(true);
-        setFetchSuccess(false);
+        throw new Error(data.error || "Malformed signals response");
       }
-    } catch (err: any) {
-      console.warn("Signal feed API error, using fallback mock data:", err);
+    } catch (e: any) {
+      console.warn("REST API fetching failed. Reverting to local Demo dataset.");
       const prevMap: Record<string, number> = {};
-      signals.forEach(s => { prevMap[s.ticker] = s.confidence; });
+      signals.forEach(s => {
+        prevMap[s.ticker] = s.confidence;
+      });
       prevSignalsRef.current = prevMap;
 
       setSignals(fallbackMockSignals);
@@ -336,11 +252,11 @@ export default function DashboardPage() {
     const toastId = toast.loading("Invoking ML pipeline to calculate indicators...");
 
     try {
-const response = await fetch(`/api/proxy/generate-batch`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ tickers: CORE_TICKERS })
-});
+      const response = await fetch(`/api/proxy/generate-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tickers: CORE_TICKERS })
+      });
 
       if (!response.ok) {
         throw new Error("API call error");
@@ -386,6 +302,38 @@ const response = await fetch(`/api/proxy/generate-batch`, {
   const sellCount = filteredSignals.filter(s => s.signalType === 'SELL').length;
   const holdCount = filteredSignals.filter(s => s.signalType === 'HOLD').length;
 
+  // Calculate Sentiment percentages for active market overview
+  const getMarketSentimentStats = () => {
+    if (filteredSignals.length === 0) return { bullish: 0, bearish: 0, neutral: 0 };
+    const buy = filteredSignals.filter(s => s.signalType === 'BUY').length;
+    const sell = filteredSignals.filter(s => s.signalType === 'SELL').length;
+    const hold = filteredSignals.filter(s => s.signalType === 'HOLD').length;
+    const total = filteredSignals.length;
+    return {
+      bullish: Math.round((buy / total) * 100),
+      bearish: Math.round((sell / total) * 100),
+      neutral: Math.round((hold / total) * 100)
+    };
+  };
+
+  const sentimentStats = getMarketSentimentStats();
+
+  const handleNavClick = (tab: string) => {
+    if (tab === 'Backtest') router.push('/backtest');
+    else if (tab === 'Heatmap') router.push('/heatmap');
+    else if (tab === 'Risk') router.push('/risk');
+    else if (tab === 'API') router.push('/api-docs');
+    else if (tab === 'Simulator') router.push('/simulator');
+    else if (tab === 'Settings') router.push('/settings');
+    else setActiveTab(tab);
+  };
+
+  // Nav counts badges for Sidebar
+  const sidebarCounts = {
+    'Dashboard': signals.length,
+    'Watchlist': watchlist.length
+  };
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-void text-frost flex relative">
       {/* Background (z-0) */}
@@ -399,6 +347,7 @@ const response = await fetch(`/api/proxy/generate-batch`, {
         onMobileClose={() => setIsMobileSidebarOpen(false)}
         onGenerateSignals={handleGenerateSignals}
         isGenerating={isGenerating}
+        counts={sidebarCounts}
       />
 
       {/* Main Content Pane (z-10) */}
@@ -519,84 +468,70 @@ const response = await fetch(`/api/proxy/generate-batch`, {
               <span className="hidden sm:inline">Export CSV</span>
             </motion.button>
 
-            {/* LIVE / DEMO Indicator */}
-            {isDemoMode ? (
-              <span className="font-sans font-medium text-[11px] text-[#F59E0B] flex items-center gap-1">
-                <span>○</span> DEMO
-              </span>
-            ) : (
-              <span className="font-sans font-medium text-[11px] text-[#22C55E] flex items-center gap-1">
-                <span className="animate-pulse">●</span> LIVE
-              </span>
-            )}
+            {/* Live Indicator with Pulse Dot */}
+            <div className="flex items-center gap-1.5 text-[11px] font-sans font-semibold tracking-wider text-muted">
+              <motion.span
+                animate={{ scale: [1, 1.3, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="inline-block text-[#22C55E]"
+              >
+                ●
+              </motion.span>{' '}
+              LIVE
+            </div>
           </div>
         </header>
 
-        {/* TickerTape banner below header */}
-        <div className="w-full border-b border-border-dark overflow-hidden bg-void/50 z-10 select-none hidden lg:block">
-          <TickerTape signals={signals} />
-        </div>
-
-        {/* Scrollable grid content area */}
-        <div className="flex-1 overflow-y-auto p-6 pb-24 md:pb-6">
+        {/* Dynamic content scroll frame (PAGE ENTRANCE ANIMATION WRAPPER) */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="flex-1 overflow-y-auto p-4 pb-24 md:pb-6"
+        >
+          
+          {/* Render Dashboard signals list Tab */}
           {activeTab === 'Dashboard' && (
             <div className="space-y-6">
-              {/* Header Title Section */}
-              <div className="flex flex-col gap-1 select-none">
-                <h1 className="text-[20px] font-medium text-frost font-sans leading-none flex items-center gap-2">
-                  Confluence Signals
-                </h1>
-                <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-                  Real-time indicator values, optimized entry points, and protective levels.
-                </p>
-              </div>
-
-              {/* Control Panel: Pill Filters and slider */}
-              <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-6 select-none">
+              
+              {/* Filter controls row */}
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-[#111318]/30 border border-border-dark p-4 rounded-[12px] select-none">
                 
-                {/* Market Filter Pills (with active layoutId slide animation) */}
-                <div className="flex items-center gap-1 bg-void p-1 rounded-[6px] border border-border-dark max-w-max">
-                  {(['All', 'NSE', 'BSE', 'US'] as const).map((market) => {
-                    const isActive = selectedMarket === market;
-                    return (
-                      <button
-                        key={market}
-                        onClick={() => setSelectedMarket(market)}
-                        className="px-3 py-1 text-[12px] font-medium rounded-[4px] transition-colors duration-150 font-sans leading-none relative overflow-hidden"
-                        style={{ color: isActive ? '#FFFFFF' : '#6B7280' }}
-                      >
-                        {isActive && (
-                          <motion.div 
-                            layoutId="active-pill" 
-                            className="absolute inset-0 bg-indigo rounded-[4px] z-0"
-                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                          />
-                        )}
-                        <span className="relative z-10">{market}</span>
-                      </button>
-                    );
-                  })}
+                {/* Market Buttons */}
+                <div className="flex gap-1.5 flex-wrap">
+                  {(['All', 'NSE', 'BSE', 'US'] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedMarket(m)}
+                      className={`text-[12px] font-sans font-medium px-3.5 py-1.5 rounded-[6px] border transition-all ${
+                        selectedMarket === m 
+                          ? 'bg-[#6366F1] border-[#6366F1] text-white' 
+                          : 'bg-[#1C1F28]/60 border-border-dark text-[#6B7280] hover:text-frost hover:border-[#1E2230]'
+                      }`}
+                    >
+                      {m} Markets
+                    </button>
+                  ))}
                 </div>
 
-                {/* Radix UI Slider for confidence range */}
-                <div className="flex items-center gap-4 flex-1 max-w-[320px] justify-end">
-                  <span className="text-[12px] font-sans text-muted select-none">
-                    Min Conf: <span className="font-mono text-frost font-medium">{minConfidence}%</span>
+                {/* Min Confidence Slider */}
+                <div className="flex items-center gap-4 w-full md:w-auto max-w-[280px]">
+                  <span className="text-[11px] text-muted uppercase tracking-wider font-semibold whitespace-nowrap">
+                    Min Confidence: <span className="font-mono text-indigo font-bold">{minConfidence}%</span>
                   </span>
-                  
                   <Slider.Root
-                    className="relative flex items-center select-none touch-none w-full max-w-[200px] h-5"
                     value={[minConfidence]}
                     onValueChange={(val) => setMinConfidence(val[0])}
                     min={50}
-                    max={90}
-                    step={1}
+                    max={95}
+                    step={5}
+                    className="relative flex items-center select-none touch-none w-32 h-5"
                   >
-                    <Slider.Track className="bg-raised relative flex-grow rounded-full h-[2px]">
-                      <Slider.Range className="absolute bg-indigo rounded-full h-full" />
+                    <Slider.Track className="bg-[#1C1F28] relative flex-grow rounded-full h-1 border border-border-dark">
+                      <Slider.Range className="absolute bg-[#6366F1] rounded-full h-full" />
                     </Slider.Track>
                     <Slider.Thumb 
-                      className="block w-3.5 h-3.5 bg-frost border border-indigo rounded-full shadow-md hover:scale-125 focus:scale-125 focus:outline-none transition-transform cursor-grab active:cursor-grabbing z-10" 
+                      className="block w-3.5 h-3.5 bg-frost rounded-full hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo transition-colors cursor-pointer border border-[#111318]" 
                       aria-label="Min Confidence"
                     />
                   </Slider.Root>
@@ -612,57 +547,114 @@ const response = await fetch(`/api/proxy/generate-batch`, {
                 avgConfidence={avgConfidence}
               />
 
-              {/* Card List / Grid area */}
+              {/* MARKET OVERVIEW section */}
+              {selectedMarket !== 'All' && filteredSignals.length > 0 && (
+                <div className="flex items-center gap-3 text-[12px] font-sans text-muted pb-2 select-none border-b border-border-dark mb-4">
+                  <span className="font-semibold text-frost">{selectedMarket} OVERVIEW:</span>
+                  <span className="text-[#22C55E]">Bullish: {sentimentStats.bullish}%</span>
+                  <span className="text-dim">|</span>
+                  <span className="text-[#EF4444]">Bearish: {sentimentStats.bearish}%</span>
+                  <span className="text-dim">|</span>
+                  <span className="text-[#F59E0B]">Neutral: {sentimentStats.neutral}%</span>
+                </div>
+              )}
+
+              {/* Card List / Grid area (AUTO-FILL RESPONSIVE GRID) */}
               {isLoading ? (
-                /* Mirrored loading skeleton structure */
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div 
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                    gap: 12,
+                  }}
+                >
                   {Array.from({ length: 6 }).map((_, i) => (
                     <SignalCardSkeleton key={i} index={i} />
                   ))}
                 </div>
-              ) : filteredSignals.length > 0 ? (
-                /* Staggered load list */
-                <motion.div 
-                  variants={{
-                    show: { transition: { staggerChildren: 0.06 } }
-                  }}
-                  initial="hidden"
-                  animate="show"
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-                >
-                  {filteredSignals.map((signal, index) => (
-                    <SignalCard
-                      key={signal.id}
-                      ticker={signal.ticker}
-                      market={signal.market}
-                      signalType={signal.signalType}
-                      confidence={signal.confidence}
-                      entry={signal.entry}
-                      stopLoss={signal.stopLoss}
-                      target={signal.target}
-                      timestamp={signal.timestamp}
-                      index={index}
-                      previousConfidence={prevSignalsRef.current[signal.ticker]}
-                      isWatched={watchlist.includes(signal.ticker)}
-                      onWatchToggle={() => handleWatchlistToggle(signal.ticker)}
-                      onClick={() => {
-                        setSelectedSignalForDrawer(signal);
-                        setIsDrawerOpen(true);
-                      }}
-                    />
-                  ))}
-                </motion.div>
               ) : (
-                /* Empty state with fade transition */
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center justify-center p-12 min-h-[220px] w-full border border-border-dark bg-[#111318]/30 rounded-[6px]"
-                >
-                  <p className="text-[13px] font-sans font-normal text-muted text-[#374151]">
-                    {search ? `No signals found for "${search}"` : "No signals match your filters"}
-                  </p>
-                </motion.div>
+                <div className="space-y-4">
+                  {filteredSignals.length > 0 && (
+                    <motion.div 
+                      variants={{
+                        show: { transition: { staggerChildren: 0.06 } }
+                      }}
+                      initial="hidden"
+                      animate="show"
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                        gap: 12,
+                      }}
+                    >
+                      {filteredSignals.map((signal, index) => (
+                        <SignalCard
+                          key={signal.id}
+                          ticker={signal.ticker}
+                          market={signal.market}
+                          signalType={signal.signalType}
+                          confidence={signal.confidence}
+                          entry={signal.entry}
+                          stopLoss={signal.stopLoss}
+                          target={signal.target}
+                          timestamp={signal.timestamp}
+                          index={index}
+                          previousConfidence={prevSignalsRef.current[signal.ticker]}
+                          isWatched={watchlist.includes(signal.ticker)}
+                          onWatchToggle={() => handleWatchlistToggle(signal.ticker)}
+                          onClick={() => {
+                            setSelectedSignalForDrawer(signal);
+                            setIsDrawerOpen(true);
+                          }}
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+
+                  {/* Empty state or few items scanner panel coverage */}
+                  {filteredSignals.length < 4 && (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      background: "#111318",
+                      border: "1px solid #1E2230",
+                      borderRadius: 6,
+                      padding: "32px 24px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}>
+                      <div>
+                        <div className="font-sans font-normal text-[14px] text-muted">Generating more signals...</div>
+                        <div className="font-sans font-normal text-[12px] text-[#374151] mt-1">Our AI scans {CORE_TICKERS.length} tickers every 30 minutes</div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="text-[10px] text-muted uppercase font-semibold">TICKER COVERAGE</div>
+                          <div className="text-[14px] font-mono font-bold text-frost">35 / 50</div>
+                        </div>
+                        <button 
+                          onClick={handleGenerateSignals}
+                          disabled={isGenerating}
+                          className="bg-[#6366F1] hover:bg-[#8183F4] text-white text-[12px] font-sans font-medium px-4 py-2 rounded-[6px] transition-colors leading-none disabled:opacity-50"
+                        >
+                          {isGenerating ? "Generating..." : "Generate Now"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredSignals.length === 0 && (
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex items-center justify-center p-12 min-h-[220px] w-full border border-border-dark bg-[#111318]/30 rounded-[6px]"
+                    >
+                      <p className="text-[13px] font-sans font-normal text-muted text-[#374151]">
+                        {search ? `No signals found for "${search}"` : "No signals match your filters"}
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -743,7 +735,11 @@ const response = await fetch(`/api/proxy/generate-batch`, {
                   }}
                   initial="hidden"
                   animate="show"
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+                    gap: 12,
+                  }}
                 >
                   {watchlist.map((ticker, index) => {
                     const signal = watchlistSignals.find(s => s.ticker === ticker) || 
@@ -782,20 +778,19 @@ const response = await fetch(`/api/proxy/generate-batch`, {
                   })}
                 </motion.div>
               ) : (
-                <div className="border border-border-dark bg-surface p-12 text-center rounded-[6px] select-none">
-                  <Star className="w-8 h-8 text-dim mx-auto mb-3" />
-                  <h3 className="text-[14px] font-medium text-frost mb-1 font-sans">No Watchlist Items</h3>
-                  <p className="text-[12px] text-muted font-sans max-w-sm mx-auto">
-                    Search and add tickers above or star card confluences to monitor them here.
+                <div className="flex items-center justify-center p-12 min-h-[220px] w-full border border-border-dark bg-[#111318]/30 rounded-[6px]">
+                  <p className="text-[13px] font-sans font-normal text-muted text-[#374151]">
+                    Your watchlist is empty. Add tickers above to start tracking.
                   </p>
                 </div>
               )}
             </div>
           )}
-        </div>
+
+        </motion.div>
       </div>
 
-      {/* Signal Details drawer popup overlay */}
+      {/* Slide-out drawer details */}
       <SignalDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}

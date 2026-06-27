@@ -14,6 +14,7 @@ export interface SidebarProps {
   onMobileClose?: () => void;
   onGenerateSignals?: () => void;
   isGenerating?: boolean;
+  counts?: { [route: string]: number };
 }
 
 export function Sidebar({ 
@@ -22,7 +23,8 @@ export function Sidebar({
   isMobileOpen = false,
   onMobileClose,
   onGenerateSignals,
-  isGenerating = false
+  isGenerating = false,
+  counts
 }: SidebarProps) {
   const [email, setEmail] = useState<string>('Loading...');
   const supabase = createClient();
@@ -196,7 +198,7 @@ export function Sidebar({
             return (
               <motion.div
                 key={item.name}
-                whileHover={{ x: 2 }}
+                whileHover={{ x: 3 }}
                 transition={{ duration: 0.15 }}
                 className="relative w-full"
               >
@@ -229,8 +231,15 @@ export function Sidebar({
                   </span>
                   <span>{item.name}</span>
                   
+                  {/* Signals Count Badge */}
+                  {counts && counts[item.name] !== undefined && counts[item.name] > 0 && (
+                    <span className="bg-[#1C1F28] border border-[#1E2230] text-[#6B7280] font-mono text-[10px] px-1.5 py-0.5 rounded-[4px] ml-auto select-none mr-1.5">
+                      {counts[item.name]}
+                    </span>
+                  )}
+
                   {/* Shortcut key tag */}
-                  <kbd className="text-[9px] text-[#374151] bg-[#1C1F28] border border-border-dark px-1.5 rounded ml-auto font-mono font-normal">
+                  <kbd className={`text-[9px] text-[#374151] bg-[#1C1F28] border border-border-dark px-1.5 rounded font-mono font-normal ${counts && counts[item.name] !== undefined && counts[item.name] > 0 ? '' : 'ml-auto'}`}>
                     {item.keyHint}
                   </kbd>
                 </button>

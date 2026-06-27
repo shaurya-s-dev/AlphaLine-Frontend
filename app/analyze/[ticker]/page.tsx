@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
-import Script from 'next/script';
 import Sidebar from '@/components/Sidebar';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { ArrowLeft, ArrowUpRight, TrendingUp, ShieldAlert, Cpu, Sparkles } from 'lucide-react';
@@ -24,7 +23,6 @@ export default function AnalyzeTickerPage() {
   // AI analysis states
   const [aiAnalysis, setAiAnalysis] = useState<any | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [groqAvailable, setGroqAvailable] = useState(true);
 
   // Load news on mount
   useEffect(() => {
@@ -56,44 +54,61 @@ export default function AnalyzeTickerPage() {
   }, [ticker]);
 
   // TradingView symbol translator helper
-  function tickerToTVSymbol(t: string): string {
-    const symbolUpper = t.toUpperCase();
-    if (symbolUpper.endsWith('.NS')) {
-      return `NSE:${symbolUpper.replace('.NS', '')}`;
+  function tickerToTVSymbol(ticker: string): string {
+    // NSE tickers: RELIANCE.NS → NSE:RELIANCE
+    if (ticker.endsWith('.NS')) {
+      return 'NSE:' + ticker.replace('.NS', '');
     }
-    if (symbolUpper.endsWith('.BO')) {
-      return `BSE:${symbolUpper.replace('.BO', '')}`;
+    // BSE tickers: RELIANCE.BO → BSE:RELIANCE  
+    if (ticker.endsWith('.BO')) {
+      return 'BSE:' + ticker.replace('.BO', '');
     }
-    // US list
-    const usList = ['AAPL', 'GOOGL', 'MSFT', 'META', 'TSLA', 'NVDA', 'AMZN', 'AMD'];
-    if (usList.includes(symbolUpper)) {
-      return `NASDAQ:${symbolUpper}`;
-    }
-    if (symbolUpper === 'JPM') {
-      return 'NYSE:JPM';
-    }
-    return `NASDAQ:${symbolUpper}`; // default fallback
+    // US tickers — map to correct exchange
+    const nasdaq = ['AAPL','MSFT','GOOGL','GOOG',
+      'META','NVDA','TSLA','AMZN','AMD','NFLX',
+      'INTC','QCOM','SHOP','COIN','CRM','ORCL'];
+    const nyse = ['JPM','BAC','WFC','GS','MS',
+      'JNJ','PFE','KO','PG','XOM','CVX'];
+    if (nasdaq.includes(ticker)) return 'NASDAQ:' + ticker;
+    if (nyse.includes(ticker)) return 'NYSE:' + ticker;
+    return 'NASDAQ:' + ticker; // default
   }
 
-  // TradingView widget instantiator
-  const initTVWidget = () => {
-    if (typeof window !== 'undefined' && (window as any).TradingView) {
-      new (window as any).TradingView.widget({
-        "width": "100%",
-        "height": 400,
-        "symbol": tickerToTVSymbol(ticker),
-        "interval": "D",
-        "timezone": "Asia/Kolkata",
-        "theme": "dark",
-        "style": "1",
-        "locale": "en",
-        "toolbar_bg": "#111318",
-        "enable_publishing": false,
-        "hide_top_toolbar": false,
-        "container_id": "tv_chart"
-      });
-    }
-  };
+  // TradingView widget initialization & dynamic reload
+  useEffect(() => {
+    // Clear previous widget
+    const container = document.getElementById('tv_chart');
+    if (container) container.innerHTML = '';
+    
+    const script = document.createElement('script');
+    script.src = 'https://s3.tradingview.com/tv.js';
+    script.async = true;
+    script.onload = () => {
+      if (typeof window !== 'undefined' && (window as any).TradingView) {
+        new (window as any).TradingView.widget({
+          width: '100%',
+          height: 420,
+          symbol: tickerToTVSymbol(ticker),
+          interval: 'D',
+          timezone: 'Asia/Kolkata',
+          theme: 'dark',
+          style: '1',
+          locale: 'en',
+          toolbar_bg: '#111318',
+          enable_publishing: false,
+          container_id: 'tv_chart',
+          hide_side_toolbar: false,
+          allow_symbol_change: true,
+        });
+      }
+    };
+    document.head.appendChild(script);
+    return () => {
+      if (document.head.contains(script)) {
+        document.head.removeChild(script);
+      }
+    };
+  }, [ticker]); // re-runs when ticker changes
 
   const handleAiAnalysis = async () => {
     setIsAiLoading(true);
@@ -101,7 +116,8 @@ export default function AnalyzeTickerPage() {
     const toastId = toast.loading("Invoking Llama-3.1 model to generate report...");
 
     try {
-      const summaryText = news.map(n => `[${n.sentiment}] ${n.title}`).join('\n');
+      const summaryText = news.map(n => `[${n.sentiment}] ${n.title}`).join('
+');
       
       const res = await fetch('/api/ai-analyze', {
         method: 'POST',
@@ -140,65 +156,63 @@ export default function AnalyzeTickerPage() {
       context: '',
       technical: '',
       setup: '',
+      institutional: '',
       risks: '',
       verdict: ''
     };
 
-    const contextMatch = markdown.match(/(?:###\s+1\.\s+MARKET\s+CONTEXT|###\s+MARKET\s+CONTEXT)([\s\S]*?)(?=###\s+\d+\.|###\s+TECHNICAL|###\s+TRADE|###\s+RISK|###\s+VERDICT|$)/i);
-    const technicalMatch = markdown.match(/(?:###\s+2\.\s+TECHNICAL\s+OUTLOOK|###\s+TECHNICAL\s+OUTLOOK)([\s\S]*?)(?=###\s+\d+\.|###\s+MARKET|###\s+TRADE|###\s+RISK|###\s+VERDICT|$)/i);
-    const setupMatch = markdown.match(/(?:###\s+3\.\s+TRADE\s+SETUP|###\s+TRADE\s+SETUP)([\s\S]*?)(?=###\s+\d+\.|###\s+MARKET|###\s+TECHNICAL|###\s+RISK|###\s+VERDICT|$)/i);
-    const risksMatch = markdown.match(/(?:###\s+4\.\s+RISK\s+FACTORS|###\s+RISK\s+FACTORS)([\s\S]*?)(?=###\s+\d+\.|###\s+MARKET|###\s+TECHNICAL|###\s+TRADE|###\s+VERDICT|$)/i);
-    const verdictMatch = markdown.match(/(?:###\s+5\.\s+VERDICT|###\s+VERDICT)([\s\S]*?)$/i);
+    const contextMatch = markdown.match(/## MARKET CONTEXT([\s\S]*?)(?=## TECHNICAL|$)/i);
+    const technicalMatch = markdown.match(/## TECHNICAL ANALYSIS([\s\S]*?)(?=## TRADE|$)/i);
+    const setupMatch = markdown.match(/## TRADE SETUP([\s\S]*?)(?=## INSTITUTIONAL|$)/i);
+    const institutionalMatch = markdown.match(/## INSTITUTIONAL PERSPECTIVE([\s\S]*?)(?=## RISK|$)/i);
+    const risksMatch = markdown.match(/## RISK FACTORS([\s\S]*?)(?=## AI VERDICT|$)/i);
+    const verdictMatch = markdown.match(/## AI VERDICT([\s\S]*?)$/i);
 
     sections.context = contextMatch ? contextMatch[1].trim() : '';
     sections.technical = technicalMatch ? technicalMatch[1].trim() : '';
     sections.setup = setupMatch ? setupMatch[1].trim() : '';
+    sections.institutional = institutionalMatch ? institutionalMatch[1].trim() : '';
     sections.risks = risksMatch ? risksMatch[1].trim() : '';
     sections.verdict = verdictMatch ? verdictMatch[1].trim() : '';
-
-    // Split fallback
-    if (!sections.context && !sections.technical && !sections.setup) {
-      const lines = markdown.split('\n');
-      let current = 'context';
-      lines.forEach(line => {
-        if (line.includes('1.') || line.toLowerCase().includes('context')) current = 'context';
-        else if (line.includes('2.') || line.toLowerCase().includes('technical')) current = 'technical';
-        else if (line.includes('3.') || line.toLowerCase().includes('setup')) current = 'setup';
-        else if (line.includes('4.') || line.toLowerCase().includes('risk')) current = 'risks';
-        else if (line.includes('5.') || line.toLowerCase().includes('verdict')) current = 'verdict';
-        else {
-          sections[current as keyof typeof sections] += line + '\n';
-        }
-      });
-    }
 
     return sections;
   }
 
-  // Format Verdict color
-  function getVerdictBadgeStyles(vText: string) {
-    const textUpper = vText.toUpperCase();
-    if (textUpper.includes('BUY')) {
-      return 'bg-[#22C55E]/15 border-[#22C55E]/30 text-[#22C55E]';
-    }
-    if (textUpper.includes('SELL')) {
-      return 'bg-[#EF4444]/15 border-[#EF4444]/30 text-[#EF4444]';
-    }
-    return 'bg-[#F59E0B]/15 border-[#F59E0B]/30 text-[#F59E0B]';
-  }
+  // Parse Verdict section details
+  const getVerdictDetails = () => {
+    if (!aiAnalysis || !aiAnalysis.verdict) return null;
+    const lines = aiAnalysis.verdict.split('\n').filter((l: string) => l.trim() !== '');
+    
+    let verdictSignal = signalType;
+    let verdictConviction = 'High';
+    let verdictConfidence = confidence + '%';
+    let verdictSummary = '';
+
+    lines.forEach((line: string) => {
+      if (line.toLowerCase().startsWith('signal:')) verdictSignal = line.split(':')[1].trim();
+      else if (line.toLowerCase().startsWith('conviction:')) verdictConviction = line.split(':')[1].trim();
+      else if (line.toLowerCase().startsWith('confidence:')) verdictConfidence = line.split(':')[1].trim();
+      else if (line.trim()) {
+        verdictSummary += line + ' ';
+      }
+    });
+
+    return {
+      signal: verdictSignal,
+      conviction: verdictConviction,
+      confidence: verdictConfidence,
+      summary: verdictSummary
+    };
+  };
+
+  const verdictData = getVerdictDetails();
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
       <Sidebar activeTab="Dashboard" />
       <AnimatedBackground />
 
-      {/* Script for TV chart widget */}
-      <Script 
-        src="https://s3.tradingview.com/tv.js" 
-        onLoad={initTVWidget}
-      />
-
-      <main className="flex-1 md:pl-[220px] p-6 pb-24 md:pb-6 max-w-6xl w-full mx-auto relative z-10">
+      <main className="flex-1 md:pl-[220px] p-4 pb-24 md:pb-6 max-w-6xl w-full mx-auto relative z-10">
         
         {/* Navigation / Header */}
         <div className="flex justify-between items-center mb-6">
@@ -231,7 +245,7 @@ export default function AnalyzeTickerPage() {
             
             {/* Chart Widget container */}
             <div className="bg-[#111318]/50 border border-border-dark rounded-[12px] p-1 overflow-hidden relative">
-              <div id="tv_chart" className="w-full rounded-[8px]" style={{ height: 400 }} />
+              <div id="tv_chart" className="w-full rounded-[8px]" style={{ height: 420 }} />
             </div>
 
             {/* News feed section */}
@@ -315,13 +329,27 @@ export default function AnalyzeTickerPage() {
               )}
 
               {aiAnalysis && (
-                <div className="space-y-4 overflow-y-auto max-h-[480px] pr-1">
+                <div className="space-y-4 overflow-y-auto max-h-[520px] pr-1">
                   
                   {/* Verdict badge card */}
-                  {aiAnalysis.verdict && (
-                    <div className={`p-4 rounded-[8px] border text-center font-bold flex flex-col items-center gap-1 ${getVerdictBadgeStyles(aiAnalysis.verdict)}`}>
-                      <span className="text-[10px] uppercase tracking-widest font-sans opacity-70">AI VERDICT SUMMARY</span>
-                      <p className="font-brand text-lg tracking-wider whitespace-pre-wrap">{aiAnalysis.verdict.replace(/#/g, '')}</p>
+                  {verdictData && (
+                    <div className="bg-[#1C1F28]/50 border border-border-dark p-5 rounded-[8px] text-center select-none">
+                      <div className="text-[10px] text-muted uppercase tracking-widest font-semibold font-sans">AI VERDICT SUMMARY</div>
+                      <div className={`text-[36px] font-brand font-black tracking-widest my-2 ${
+                        verdictData.signal.toUpperCase().includes('BUY') ? 'text-[#22C55E]' :
+                        verdictData.signal.toUpperCase().includes('SELL') ? 'text-[#EF4444]' :
+                        'text-[#F59E0B]'
+                      }`}>
+                        {verdictData.signal.toUpperCase()}
+                      </div>
+                      <div className="inline-block px-3 py-0.5 bg-surface border border-border-dark rounded-full text-[10px] font-medium text-frost mb-3">
+                        Conviction: <span className="text-indigo font-bold">{verdictData.conviction}</span> ({verdictData.confidence})
+                      </div>
+                      {verdictData.summary && (
+                        <p className="text-[12px] text-muted leading-relaxed font-sans font-normal border-t border-border-dark/50 pt-3">
+                          {verdictData.summary.trim()}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -336,25 +364,40 @@ export default function AnalyzeTickerPage() {
                   {/* Technical Outlook card */}
                   {aiAnalysis.technical && (
                     <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">2. Technical Outlook</span>
-                      <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.technical.replace(/#/g, '')}</p>
+                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">2. Technical Analysis</span>
+                      <p className="text-[12.5px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.technical.replace(/#/g, '')}</p>
                     </div>
                   )}
 
-                  {/* Setup card with color coding */}
+                  {/* Setup card with row styling */}
                   {aiAnalysis.setup && (
-                    <div className="bg-[#1C1F28]/40 border border-[#1E2230] p-4 rounded-[8px] space-y-2.5">
-                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">3. Proposed Trade Setup</span>
-                      <div className="text-[12px] font-mono whitespace-pre-wrap leading-relaxed">
-                        {aiAnalysis.setup.split('\n').map((line: string, i: number) => {
-                          let colorClass = 'text-frost';
-                          if (line.toLowerCase().includes('entry')) colorClass = 'text-sig-green font-semibold';
-                          else if (line.toLowerCase().includes('stop loss') || line.toLowerCase().includes('stoploss') || line.toLowerCase().includes('sl:')) colorClass = 'text-sig-red font-semibold';
-                          else if (line.toLowerCase().includes('target')) colorClass = 'text-[#10B981] font-semibold'; // Emerald target
-                          
+                    <div className="bg-[#1C1F28]/40 border border-[#1E2230] p-4 rounded-[8px] space-y-3">
+                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold block border-b border-border-dark pb-1.5">3. Proposed Trade Setup</span>
+                      <div className="space-y-1.5">
+                        {aiAnalysis.setup.split('\n').filter((l: string) => l.trim() !== '').map((line: string, i: number) => {
+                          const parts = line.split(':');
+                          if (parts.length >= 2) {
+                            const label = parts[0].replace(/-\s+/, '').replace(/\*\*/g, '').trim();
+                            const val = parts.slice(1).join(':').replace(/\*\*/g, '').trim();
+                            
+                            let valColor = 'text-frost';
+                            if (label.toLowerCase().includes('entry')) valColor = 'text-[#6366F1] font-mono';
+                            else if (label.toLowerCase().includes('stop loss') || label.toLowerCase().includes('stoploss') || label.toLowerCase().includes('sl')) valColor = 'text-[#EF4444] font-mono';
+                            else if (label.toLowerCase().includes('target 1')) valColor = 'text-[#22C55E]/70 font-mono';
+                            else if (label.toLowerCase().includes('target 2')) valColor = 'text-[#22C55E]/85 font-mono';
+                            else if (label.toLowerCase().includes('target 3')) valColor = 'text-[#22C55E] font-mono';
+                            else if (label.toLowerCase().includes('risk/reward') || label.toLowerCase().includes('reward')) valColor = 'text-[#E2E8F0] font-mono';
+
+                            return (
+                              <div key={i} className="flex justify-between py-1 border-b border-border-dark/20 text-[12px] last:border-b-0">
+                                <span className="text-muted font-sans">{label}</span>
+                                <span className={`${valColor} font-bold`}>{val}</span>
+                              </div>
+                            );
+                          }
                           return (
-                            <div key={i} className={colorClass}>
-                              {line.replace(/#/g, '')}
+                            <div key={i} className="text-[12px] text-muted font-sans py-0.5">
+                              {line.replace(/-\s+/, '').replace(/#/g, '')}
                             </div>
                           );
                         })}
@@ -362,10 +405,18 @@ export default function AnalyzeTickerPage() {
                     </div>
                   )}
 
+                  {/* Institutional Perspective card */}
+                  {aiAnalysis.institutional && (
+                    <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
+                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">4. Institutional Perspective</span>
+                      <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.institutional.replace(/#/g, '')}</p>
+                    </div>
+                  )}
+
                   {/* Risk Factors card */}
                   {aiAnalysis.risks && (
                     <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">4. Core Risk Factors</span>
+                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">5. Core Risk Factors</span>
                       <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.risks.replace(/#/g, '')}</p>
                     </div>
                   )}

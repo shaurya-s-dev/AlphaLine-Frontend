@@ -2,54 +2,125 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { ticker, currentPrice, signalType, confidence, rsi, volume, news } = await req.json();
+    const { 
+      ticker, 
+      currentPrice, 
+      signalType, 
+      confidence, 
+      rsi, 
+      volume, 
+      volumeDelta, 
+      momentum, 
+      news, 
+      newsSentiment 
+    } = await req.json();
 
-    const systemPrompt = `You are an expert stock market analyst with deep knowledge of technical analysis, fundamental analysis, and market psychology. You analyze stocks for Indian (NSE/BSE) and US markets. Always provide specific, actionable insights with exact price levels. Format your response in clear sections.`;
+    const vDelta = volumeDelta || volume || 'N/A';
+    const mntm = momentum || 'N/A';
+    const nSent = newsSentiment || news || 'Neutral';
 
-    const userPrompt = `Analyze ${ticker} currently trading at ${currentPrice}.
-Current AI signal: ${signalType} with ${confidence}% confidence.
-RSI: ${rsi || 'N/A'}, Volume spike: ${volume || 'N/A'}.
-Recent news sentiment: ${news || 'N/A'}
+    const systemPrompt = `You are ALPHA, an elite quantitative analyst and trading strategist with 20 years of experience in both Indian (NSE/BSE) and US equity markets. You combine technical analysis, fundamental analysis, institutional order flow, and market sentiment to generate precise, actionable trading insights.
 
-Provide:
-1. MARKET CONTEXT (2-3 sentences)
-2. TECHNICAL OUTLOOK (RSI, trend, momentum)  
-3. TRADE SETUP:
-   - Entry zone: specific price range
-   - Stop loss: specific price with reason
-   - Target 1: conservative target
-   - Target 2: aggressive target
-   - Risk/Reward ratio
-4. RISK FACTORS (2-3 bullet points)
-5. VERDICT: BUY / SELL / HOLD with conviction level (High/Medium/Low)
+You always provide:
+- Exact price levels (never ranges like "around X")
+- Specific reasoning tied to technical indicators
+- Risk-adjusted position sizing
+- Multiple time frame analysis
+- Institutional perspective on the trade
 
-Be specific with prices. Be concise.`;
+You speak confidently and directly. No disclaimers. No "this is not financial advice". You are an AI analyst, not a financial advisor.`;
+
+    const userPrompt = `
+TICKER: ${ticker}
+CURRENT PRICE: ${currentPrice}
+AI SIGNAL: ${signalType} (${confidence}% confidence)
+RSI: ${rsi || 'N/A'}
+VOLUME DELTA: ${vDelta}
+MOMENTUM: ${mntm}
+RECENT NEWS SENTIMENT: ${nSent}
+
+Provide a COMPLETE TRADING ANALYSIS in this EXACT format (use these exact section headers):
+
+## MARKET CONTEXT
+[3 sentences on current market conditions for this stock, sector trends, and macro factors]
+
+## TECHNICAL ANALYSIS
+RSI Reading: [value and what it means]
+Trend Direction: [Uptrend/Downtrend/Sideways + reason]
+Volume Analysis: [what volume says about conviction]
+Key Support Levels: [2 specific price levels]
+Key Resistance Levels: [2 specific price levels]
+Moving Averages: [20/50/200 MA analysis]
+Momentum: [MACD, momentum indicator reading]
+
+## TRADE SETUP
+Signal: ${signalType}
+Entry Price: [exact price]
+Stop Loss: [exact price] ([X]% risk)
+Target 1: [exact price] ([X]% gain) — Conservative
+Target 2: [exact price] ([X]% gain) — Aggressive  
+Target 3: [exact price] ([X]% gain) — Extended
+Risk/Reward: [ratio]
+Position Size: [% of portfolio recommended]
+Time Horizon: [Intraday/Swing (2-5 days)/Positional (2-4 weeks)]
+
+## INSTITUTIONAL PERSPECTIVE
+[2 sentences on what smart money/FIIs/DIIs might be doing with this stock based on technicals]
+
+## RISK FACTORS
+- [Specific risk 1 with price level]
+- [Specific risk 2 with price level]  
+- [Specific risk 3 — macro/sector risk]
+- Invalidation level: [price that kills the setup]
+
+## AI VERDICT
+Signal: ${signalType}
+Conviction: [High/Medium/Low]
+Confidence: ${confidence}%
+[2 sentence summary of why this trade makes sense]
+`;
 
     const groqKey = process.env.GROQ_API_KEY;
 
     if (!groqKey) {
       console.warn("GROQ_API_KEY not set. Falling back to Demo/Mock analysis.");
-      const mockAnalysis = `### 1. MARKET CONTEXT
-${ticker} is currently displaying consolidation characteristics. The market exhibits steady accumulation patterns in the current zone, backed by strong sector performance.
+      const mockAnalysis = `## MARKET CONTEXT
+${ticker} is experiencing high consolidation near key historical support ranges, aligning with bullish sector tailwinds in global markets. Growth indicators point to a potential breakout as macro liquidity pivots towards large-cap equities. A brief period of volume accumulation suggests a strategic reversal setup.
 
-### 2. TECHNICAL OUTLOOK
-- **RSI**: Standing at ${rsi || '54'}, representing a balanced momentum profile.
-- **Trend**: Constructive continuation patterns above the 50-day moving average.
-- **Momentum**: Exhibiting slight bullish divergence on key daily pivots.
+## TECHNICAL ANALYSIS
+RSI Reading: ${rsi || '58'} (indicating solid bullish accumulation with plenty of room before overbought territory)
+Trend Direction: Uptrend (trading above the 50-day and 200-day simple moving averages)
+Volume Analysis: Buying volume is 18% above 20-day average, signaling strong institutional conviction
+Key Support Levels: $${(currentPrice * 0.965).toFixed(2)}, $${(currentPrice * 0.93).toFixed(2)}
+Key Resistance Levels: $${(currentPrice * 1.045).toFixed(2)}, $${(currentPrice * 1.09).toFixed(2)}
+Moving Averages: 20 MA is slanting upwards and crossing above 50 MA, indicating strong near-term trend momentum
+Momentum: MACD histogram is printing positive bars with a bullish signal line crossover
 
-### 3. TRADE SETUP
-- **Entry zone**: $${(currentPrice * 0.995).toFixed(2)} - $${(currentPrice * 1.005).toFixed(2)}
-- **Stop loss**: $${(currentPrice * 0.975).toFixed(2)} (placed below key swing support levels)
-- **Target 1**: $${(currentPrice * 1.035).toFixed(2)} (conservative key resistance target)
-- **Target 2**: $${(currentPrice * 1.075).toFixed(2)} (extended range continuation)
-- **Risk/Reward ratio**: 1:2.4
+## TRADE SETUP
+Signal: ${signalType}
+Entry Price: $${currentPrice}
+Stop Loss: $${(currentPrice * 0.94).toFixed(2)} (6.00% risk)
+Target 1: $${(currentPrice * 1.05).toFixed(2)} (5.00% gain) — Conservative
+Target 2: $${(currentPrice * 1.12).toFixed(2)} (12.00% gain) — Aggressive
+Target 3: $${(currentPrice * 1.18).toFixed(2)} (18.00% gain) — Extended
+Risk/Reward: 2.0
+Position Size: 5.0% of portfolio recommended
+Time Horizon: Swing (2-5 days)
 
-### 4. RISK FACTORS
-- Near-term earnings announcement could inject unexpected volatility.
-- Broader index benchmark consolidation pressure.
+## INSTITUTIONAL PERSPECTIVE
+Smart money and FIIs are actively accumulating shares at the current support band, shown by a rise in block delivery volume. DIIs are holding their positions steady, expecting a breakout above key quarterly resistance.
 
-### 5. VERDICT
-**${signalType}** with **Medium** conviction level.`;
+## RISK FACTORS
+- Break below support at $${(currentPrice * 0.94).toFixed(2)} triggers sell-stop orders
+- Unexpected macro inflation print leading to market-wide volatility
+- Sector correlation weakness drag
+- Invalidation level: $${(currentPrice * 0.935).toFixed(2)}
+
+## AI VERDICT
+Signal: ${signalType}
+Conviction: High
+Confidence: ${confidence}%
+${ticker} is showcasing solid structural support and strong volume expansion, suggesting a highly favorable risk/reward setup. Backtest trends validate high predictive confidence for an upward continuation.`;
 
       return NextResponse.json({ success: true, analysis: mockAnalysis, demoMode: true });
     }
