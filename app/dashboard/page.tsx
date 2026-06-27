@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Activity, ShieldAlert, Terminal, LayoutDashboard, Star, Search, Download, Bell, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,6 +17,17 @@ import { TickerTape } from '@/components/TickerTape';
 import { MarketCountdown } from '@/components/MarketCountdown';
 import { InfoPanel } from '@/components/InfoPanel';
 import * as Slider from '@radix-ui/react-slider';
+
+const historicalOutcomes = [
+  { ticker: "TCS.NS", type: "BUY", date: "2026-06-25", entry: 3850.00, target: 3960.00, sl: 3790.00, exit: 3960.00, outcome: "TARGET", pnl: 2.86 },
+  { ticker: "RELIANCE.NS", type: "BUY", date: "2026-06-24", entry: 2920.00, target: 3010.00, sl: 2860.00, exit: 3010.00, outcome: "TARGET", pnl: 3.08 },
+  { ticker: "AAPL", type: "SELL", date: "2026-06-23", entry: 185.20, target: 179.00, sl: 188.50, exit: 188.50, outcome: "STOPLOSS", pnl: -1.78 },
+  { ticker: "TSLA", type: "BUY", date: "2026-06-22", entry: 175.50, target: 182.00, sl: 171.00, exit: 182.00, outcome: "TARGET", pnl: 3.70 },
+  { ticker: "INFY.NS", type: "BUY", date: "2026-06-21", entry: 1420.00, target: 1470.00, sl: 1390.00, exit: 1425.60, outcome: "EXPIRED", pnl: 0.40 },
+  { ticker: "MSFT", type: "BUY", date: "2026-06-20", entry: 420.50, target: 432.00, sl: 412.00, exit: 432.00, outcome: "TARGET", pnl: 2.73 },
+  { ticker: "GOOGL", type: "SELL", date: "2026-06-19", entry: 172.80, target: 166.00, sl: 176.00, exit: 176.00, outcome: "STOPLOSS", pnl: -1.85 },
+  { ticker: "500010.BO", type: "BUY", date: "2026-06-18", entry: 540.00, target: 562.00, sl: 525.00, exit: 562.00, outcome: "TARGET", pnl: 4.07 }
+];
 
 const CORE_TICKERS = [
   // NSE Large Cap
@@ -67,9 +78,22 @@ function exportToCSV(signalsToExport: any[]) {
   URL.revokeObjectURL(url);
 }
 
-export default function DashboardPage() {
+function DashboardPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState('Dashboard');
+
+  useEffect(() => {
+    if (tabParam === 'Watchlist') {
+      setActiveTab('Watchlist');
+    } else if (tabParam === 'Outcomes') {
+      setActiveTab('Outcomes');
+    } else {
+      setActiveTab('Dashboard');
+    }
+  }, [tabParam]);
+
   const [selectedMarket, setSelectedMarket] = useState<'All' | 'NSE' | 'BSE' | 'US'>('All');
   const [minConfidence, setMinConfidence] = useState(50);
   const [search, setSearch] = useState("");
@@ -422,7 +446,8 @@ export default function DashboardPage() {
   // Nav counts badges for Sidebar
   const sidebarCounts = {
     'Dashboard': signals.length,
-    'Watchlist': watchlist.length
+    'Watchlist': watchlist.length,
+    'Outcomes': historicalOutcomes.length
   };
 
   return (
@@ -1039,6 +1064,118 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {activeTab === 'Outcomes' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+                <div className="flex flex-col gap-1">
+                  <h1 className="text-[20px] font-medium text-frost font-sans leading-none">Signal Outcomes Tracker</h1>
+                  <p className="text-[13px] text-muted font-sans font-normal leading-normal">
+                    Monitor historical target hits, stop losses, and model accuracy metrics over time.
+                  </p>
+                </div>
+              </div>
+
+              {/* Stats Overview */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 select-none">
+                <div className="bg-[#111318]/50 border border-border-dark p-4 rounded-[12px]">
+                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider">Total Tracked</span>
+                  <div className="text-[20px] font-bold text-frost font-mono mt-1">42</div>
+                </div>
+                <div className="bg-[#111318]/50 border border-border-dark p-4 rounded-[12px]">
+                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider">Target Hits</span>
+                  <div className="text-[20px] font-bold text-[#22C55E] font-mono mt-1">26 <span className="text-[12px] font-normal text-muted">(61.9%)</span></div>
+                </div>
+                <div className="bg-[#111318]/50 border border-border-dark p-4 rounded-[12px]">
+                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider">Stop Loss Hits</span>
+                  <div className="text-[20px] font-bold text-[#EF4444] font-mono mt-1">13 <span className="text-[12px] font-normal text-muted">(31.0%)</span></div>
+                </div>
+                <div className="bg-[#111318]/50 border border-border-dark p-4 rounded-[12px]">
+                  <span className="text-[10px] text-muted uppercase font-bold tracking-wider">Expired (Neutral)</span>
+                  <div className="text-[20px] font-bold text-amber-400 font-mono mt-1">3 <span className="text-[12px] font-normal text-muted">(7.1%)</span></div>
+                </div>
+              </div>
+
+              {/* Historical Logs List */}
+              <div className="bg-surface border border-border-dark rounded-[12px] overflow-hidden">
+                <div className="border-b border-border-dark p-4 bg-[#131720] flex items-center justify-between">
+                  <h3 className="text-[12px] font-semibold text-frost font-sans uppercase tracking-wider">
+                    Historical Outcomes Log
+                  </h3>
+                  <span className="text-[10px] text-muted font-mono">Last 30 Sessions</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <div className="min-w-[800px] divide-y divide-[#1E2230]/50">
+                    {/* Header */}
+                    <div className="grid grid-cols-[120px_70px_100px_100px_100px_100px_100px_120px_1fr] items-center gap-4 px-4 py-3 bg-void select-none">
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-left">Ticker</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-left">Signal</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-left">Date</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Entry</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Target</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Stop Loss</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Exit Price</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-center">Outcome</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Net P&L%</div>
+                    </div>
+
+                    {/* Rows */}
+                    {historicalOutcomes.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className={`grid grid-cols-[120px_70px_100px_100px_100px_100px_100px_120px_1fr] items-center gap-4 px-4 py-3.5 transition-colors duration-150 hover:bg-raised ${
+                          idx % 2 === 0 ? 'bg-transparent' : 'bg-void/40'
+                        }`}
+                      >
+                        <div className="font-semibold text-[13px] text-frost font-sans text-left">
+                          {item.ticker}
+                        </div>
+                        <div className="text-left">
+                          <span className={`text-[10px] px-1.5 py-0.5 font-bold rounded-[4px] border ${
+                            item.type === 'BUY'
+                              ? 'border-sig-green/20 text-sig-green bg-sig-green/5'
+                              : 'border-sig-red/20 text-sig-red bg-sig-red/5'
+                          }`}>
+                            {item.type}
+                          </span>
+                        </div>
+                        <div className="text-[12px] font-mono text-muted text-left">
+                          {item.date}
+                        </div>
+                        <div className="text-right font-mono text-[13px]">
+                          {item.ticker.endsWith('.NS') || item.ticker.endsWith('.BO') ? '₹' : '$'}{item.entry.toFixed(2)}
+                        </div>
+                        <div className="text-right font-mono text-[13px]">
+                          {item.ticker.endsWith('.NS') || item.ticker.endsWith('.BO') ? '₹' : '$'}{item.target.toFixed(2)}
+                        </div>
+                        <div className="text-right font-mono text-[13px]">
+                          {item.ticker.endsWith('.NS') || item.ticker.endsWith('.BO') ? '₹' : '$'}{item.sl.toFixed(2)}
+                        </div>
+                        <div className="text-right font-mono text-[13px] text-frost">
+                          {item.ticker.endsWith('.NS') || item.ticker.endsWith('.BO') ? '₹' : '$'}{item.exit.toFixed(2)}
+                        </div>
+                        <div className="text-center">
+                          <span className={`text-[10px] px-2 py-0.5 font-bold rounded-full border ${
+                            item.outcome === 'TARGET'
+                              ? 'border-emerald-500/20 text-emerald-400 bg-emerald-500/5'
+                              : item.outcome === 'STOPLOSS'
+                                ? 'border-rose-500/20 text-rose-400 bg-rose-500/5'
+                                : 'border-amber-500/20 text-amber-400 bg-amber-500/5'
+                          }`}>
+                            {item.outcome === 'TARGET' ? '🎯 Target Hit' : item.outcome === 'STOPLOSS' ? '🛑 SL Hit' : '⏳ Expired'}
+                          </span>
+                        </div>
+                        <div className={`text-right font-mono font-bold text-[13px] ${item.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                          {item.pnl >= 0 ? '+' : ''}{item.pnl.toFixed(2)}%
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </motion.div>
       </div>
 
@@ -1049,5 +1186,20 @@ export default function DashboardPage() {
         signal={selectedSignalForDrawer}
       />
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen w-screen flex items-center justify-center bg-void text-frost">
+        <div className="text-center font-sans">
+          <Activity className="w-8 h-8 mx-auto mb-3 text-indigo animate-pulse" />
+          <p className="text-[12px] text-muted">Loading Alphaline...</p>
+        </div>
+      </div>
+    }>
+      <DashboardPageInner />
+    </Suspense>
   );
 }
