@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, LogOut, Menu } from 'lucide-react';
+import { X, LogOut, Menu, Settings } from 'lucide-react';
 import { MarketCountdown } from '@/components/MarketCountdown';
 
 export interface SidebarProps {
@@ -279,6 +279,15 @@ export function Sidebar({
               </span>
             </div>
           </div>
+
+          {/* Settings */}
+          <button
+            onClick={() => router.push('/settings')}
+            className="text-muted hover:text-indigo p-1 rounded-[6px] hover:bg-raised transition-colors duration-150 mr-1"
+            title="Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
 
           {/* Sign Out */}
           <button

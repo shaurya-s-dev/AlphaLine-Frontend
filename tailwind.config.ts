@@ -9,14 +9,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        void: '#0D0F14',
-        surface: '#111318',
-        raised: '#1C1F28',
-        'border-dark': '#1E2230',
+        void: 'var(--bg-void)',
+        surface: 'var(--bg-surface)',
+        raised: 'var(--bg-raised)',
+        'border-dark': 'var(--border-dark)',
         indigo: '#6366F1',
-        frost: '#E2E8F0',
-        muted: '#6B7280',
-        dim: '#374151',
+        frost: 'var(--text-frost)',
+        muted: 'var(--text-muted)',
+        dim: 'var(--text-dim)',
         'sig-green': '#22C55E',
         'sig-red': '#EF4444',
         'sig-amber': '#F59E0B',

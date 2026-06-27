@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Mono, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
+import { ThemeProvider } from "@/components/ThemeProvider";
 import RootClientWrapper from "@/components/RootClientWrapper";
 
 const dmMono = DM_Mono({
@@ -37,11 +38,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="bg-[#0D0F14]">
+    <html lang="en">
       <body className={`${inter.variable} ${dmMono.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
-        <RootClientWrapper>
-          {children}
-        </RootClientWrapper>
+        <ThemeProvider>
+          <RootClientWrapper>
+            {children}
+          </RootClientWrapper>
+        </ThemeProvider>
       </body>
     </html>
   );

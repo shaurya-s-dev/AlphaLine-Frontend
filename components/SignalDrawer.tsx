@@ -5,6 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useRouter } from 'next/navigation';
 
 export interface SignalDrawerProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export interface SignalDrawerProps {
 }
 
 export function SignalDrawer({ isOpen, onClose, signal }: SignalDrawerProps) {
+  const router = useRouter();
   if (!signal) return null;
 
   const signalColors = {
@@ -276,6 +278,28 @@ export function SignalDrawer({ isOpen, onClose, signal }: SignalDrawerProps) {
                     </div>
                   </div>
                 </div>
+
+                {/* Analyze with AI Button */}
+                <motion.button
+                  onClick={() => {
+                    onClose();
+                    router.push(
+                      `/analyze/${signal.ticker}?signal=${signal.signalType}&confidence=${signal.confidence}&entry=${signal.entry}`
+                    );
+                  }}
+                  style={{ 
+                    width: '100%', background: '#6366F1',
+                    color: 'white', border: 'none',
+                    borderRadius: 6, height: 40,
+                    fontFamily: 'var(--font-inter)',
+                    fontSize: 13, fontWeight: 500,
+                    cursor: 'pointer', marginTop: 16
+                  }}
+                  whileHover={{ opacity: 0.9 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  Analyze with AI →
+                </motion.button>
 
                 {/* Footer Age Details */}
                 <div className="mt-8 pt-4 border-t border-border-dark flex justify-between items-center text-[11px] text-muted font-mono">

@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { AnimatedBackground } from '@/components/AnimatedBackground';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { toast } from 'sonner';
-import { Star, TrendingUp, DollarSign, Briefcase, Play, RotateCcw, XCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { TrendingUp, DollarSign, Briefcase, RotateCcw, XCircle, ArrowUpRight, ArrowDownRight, Play, CheckCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Position {
   id: string;
@@ -35,51 +35,52 @@ export default function SimulatorPage() {
   const [isLoadingSignals, setIsLoadingSignals] = useState(true);
 
   // Simulation states stored in LocalStorage
-  const [balance, setBalance] = useState<number>(100000); // virtual $100k
+  const [balance, setBalance] = useState<number>(100000); 
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<CompletedTrade[]>([]);
 
-  // Form states for entering a trade
-  const [tradeAmount, setTradeAmount] = useState<string>("5000");
+  // Modal State for Entering Trade
+  const [selectedSignalForTrade, setSelectedSignalForTrade] = useState<any | null>(null);
+  const [tradeAmount, setTradeAmount] = useState<number>(5000); // Slider value between 1,000 and 10,000
 
   useEffect(() => {
     setMounted(true);
-    document.title = "Alphaline — Portfolio Simulator";
+    document.title = "Alphaline — Paper Trading Simulator";
 
     // Load LocalStorage states
     if (typeof window !== 'undefined') {
-      const storedBalance = localStorage.getItem('sim_balance');
+      const storedBalance = localStorage.getItem('sim_balance_inr');
       const storedPositions = localStorage.getItem('sim_positions');
       const storedHistory = localStorage.getItem('sim_history');
 
       if (storedBalance) setBalance(parseFloat(storedBalance));
+      else {
+        // Initial setup
+        localStorage.setItem('sim_balance_inr', '100000');
+      }
       if (storedPositions) setPositions(JSON.parse(storedPositions));
       if (storedHistory) setHistory(JSON.parse(storedHistory));
     }
 
-    // Fetch signals for actionable triggers
+    // Fetch active signals
     const fetchSignals = async () => {
       try {
         setIsLoadingSignals(true);
-        const res = await fetch('/api/signals?market=All');
+        const res = await fetch('/api/signals?market=all&limit=50');
         if (!res.ok) throw new Error("API failed");
         const data = await res.json();
         if (data.success && data.signals && data.signals.length > 0) {
           setSignals(data.signals.filter((s: any) => s.signalType === 'BUY' || s.signalType === 'SELL'));
         } else {
-          // Fallbacks
-          setSignals([
-            { id: 'mock_1', ticker: 'RELIANCE.NS', market: 'NSE', signalType: 'BUY', confidence: 81, entry: 2847.50, stopLoss: 2790.00, target: 2960.00 },
-            { id: 'mock_2', ticker: 'AAPL', market: 'US', signalType: 'BUY', confidence: 85, entry: 189.20, stopLoss: 185.00, target: 198.00 },
-            { id: 'mock_3', ticker: 'TCS.NS', market: 'NSE', signalType: 'SELL', confidence: 74, entry: 3850.00, stopLoss: 3920.00, target: 3710.00 },
-            { id: 'mock_4', ticker: 'TSLA', market: 'US', signalType: 'BUY', confidence: 68, entry: 175.50, stopLoss: 168.00, target: 192.00 }
-          ]);
+          throw new Error("Empty signals");
         }
       } catch (e) {
         console.warn("Using fallbacks for simulator active list");
         setSignals([
-          { id: 'mock_1', ticker: 'RELIANCE.NS', market: 'NSE', signalType: 'BUY', confidence: 81, entry: 2847.50, stopLoss: 2790.00, target: 2960.00 },
-          { id: 'mock_2', ticker: 'AAPL', market: 'US', signalType: 'BUY', confidence: 85, entry: 189.20, stopLoss: 185.00, target: 198.00 }
+          { id: 'm1', ticker: 'RELIANCE.NS', market: 'NSE', signalType: 'BUY', confidence: 81, entry: 2847.50, stopLoss: 2790.00, target: 2960.00 },
+          { id: 'm2', ticker: 'TCS.NS', market: 'NSE', signalType: 'SELL', confidence: 67, entry: 3850.00, stopLoss: 3920.00, target: 3710.00 },
+          { id: 'm3', ticker: 'AAPL', market: 'US', signalType: 'BUY', confidence: 74, entry: 189.20, stopLoss: 185.00, target: 198.00 },
+          { id: 'm4', ticker: 'NVDA', market: 'US', signalType: 'BUY', confidence: 88, entry: 125.50, stopLoss: 120.00, target: 135.00 }
         ]);
       } finally {
         setIsLoadingSignals(false);
@@ -88,12 +89,12 @@ export default function SimulatorPage() {
     fetchSignals();
   }, []);
 
-  // Update current open positions price occasionally with small variance
+  // Update current open positions price occasionally with small variance (every 15 seconds)
   useEffect(() => {
     if (positions.length === 0) return;
     const interval = setInterval(() => {
       const updated = positions.map(pos => {
-        const changePercent = (Math.random() - 0.49) * 0.005; // slight bias
+        const changePercent = (Math.random() - 0.49) * 0.006; 
         const nextPrice = pos.currentPrice * (1 + changePercent);
         return {
           ...pos,
@@ -102,7 +103,7 @@ export default function SimulatorPage() {
       });
       setPositions(updated);
       localStorage.setItem('sim_positions', JSON.stringify(updated));
-    }, 8000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [positions]);
 
@@ -110,108 +111,95 @@ export default function SimulatorPage() {
     setBalance(newBalance);
     setPositions(newPositions);
     setHistory(newHistory);
-    localStorage.setItem('sim_balance', newBalance.toString());
+    localStorage.setItem('sim_balance_inr', newBalance.toString());
     localStorage.setItem('sim_positions', JSON.stringify(newPositions));
     localStorage.setItem('sim_history', JSON.stringify(newHistory));
   };
 
   const handleReset = () => {
     saveSimulationData(100000, [], []);
-    toast.success("Simulation portfolio reset to default $100k cash.");
+    toast.success("Simulation portfolio reset to default ₹1,00,000 cash.");
   };
 
-  const handleExecuteTrade = (signal: any) => {
-    const amount = parseFloat(tradeAmount) || 0;
-    if (amount <= 0) {
-      toast.error("Enter a valid allocation amount.");
-      return;
-    }
-    if (amount > balance) {
+  const handleOpenTradeModal = (signal: any) => {
+    setSelectedSignalForTrade(signal);
+    setTradeAmount(5000); // Default invest
+  };
+
+  const handleConfirmTrade = () => {
+    if (!selectedSignalForTrade) return;
+
+    if (tradeAmount > balance) {
       toast.error("Insufficient virtual cash balance.");
       return;
     }
 
-    const entryPrice = signal.entry || 100;
-    const quantity = amount / entryPrice;
-    
+    const entryPrice = selectedSignalForTrade.entry || selectedSignalForTrade.entryPrice || 100;
+    const qty = tradeAmount / entryPrice;
+
     const newPosition: Position = {
-      id: `${signal.ticker}_${Date.now()}`,
-      ticker: signal.ticker,
-      signalType: signal.signalType,
+      id: `${selectedSignalForTrade.ticker}_${Date.now()}`,
+      ticker: selectedSignalForTrade.ticker,
+      signalType: selectedSignalForTrade.signalType,
       entryPrice,
       currentPrice: entryPrice,
-      quantity,
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      quantity: qty,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
     };
 
-    const nextBalance = balance - amount;
+    const nextBalance = balance - tradeAmount;
     const nextPositions = [...positions, newPosition];
-    
+
     saveSimulationData(nextBalance, nextPositions, history);
-    toast.success(`Executed ${signal.signalType} position in ${signal.ticker}`);
+    setSelectedSignalForTrade(null);
+    toast.success(`Entered ${selectedSignalForTrade.signalType} position for ${selectedSignalForTrade.ticker}`);
   };
 
-  const handleClosePosition = (position: Position) => {
-    const isBuy = position.signalType === 'BUY';
-    const entryVal = position.quantity * position.entryPrice;
+  const handleClosePosition = (pos: Position) => {
+    // Exit price is current price
+    const exitPrice = pos.currentPrice;
     
-    // For BUY: profit when current > entry
-    // For SELL: profit when entry > current
-    const priceDiff = isBuy 
-      ? position.currentPrice - position.entryPrice
-      : position.entryPrice - position.currentPrice;
-      
-    const tradePnlPercent = (priceDiff / position.entryPrice) * 100;
-    const pnlCash = position.quantity * priceDiff;
-    const exitVal = entryVal + pnlCash;
+    // Profit Calculation
+    let profit = 0;
+    if (pos.signalType === 'BUY') {
+      profit = (exitPrice - pos.entryPrice) * pos.quantity;
+    } else {
+      // Short SELL exit profit
+      profit = (pos.entryPrice - exitPrice) * pos.quantity;
+    }
 
-    const nextBalance = balance + exitVal;
-    const nextPositions = positions.filter(p => p.id !== position.id);
-    
+    const nextBalance = balance + (pos.quantity * pos.entryPrice) + profit;
+    const nextPositions = positions.filter(p => p.id !== pos.id);
+
     const completed: CompletedTrade = {
-      id: position.id,
-      ticker: position.ticker,
-      signalType: position.signalType,
-      entryPrice: position.entryPrice,
-      exitPrice: position.currentPrice,
-      quantity: position.quantity,
-      pnl: tradePnlPercent,
-      result: tradePnlPercent >= 0 ? 'WIN' : 'LOSS',
+      id: pos.id,
+      ticker: pos.ticker,
+      signalType: pos.signalType,
+      entryPrice: pos.entryPrice,
+      exitPrice,
+      quantity: pos.quantity,
+      pnl: (profit / (pos.quantity * pos.entryPrice)) * 100, // P&L percent
+      result: profit >= 0 ? 'WIN' : 'LOSS',
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })
     };
 
-    const nextHistory = [completed, ...history];
-
-    saveSimulationData(nextBalance, nextPositions, nextHistory);
-    toast.success(`Closed ${position.ticker} position. P&L: ${tradePnlPercent >= 0 ? '+' : ''}${tradePnlPercent.toFixed(2)}%`);
+    saveSimulationData(nextBalance, nextPositions, [completed, ...history]);
+    toast.info(`Closed ${pos.ticker} position at ₹${exitPrice.toFixed(2)}. P&L: ${completed.pnl >= 0 ? '+' : ''}${completed.pnl.toFixed(2)}%`);
   };
 
-  // Calculations
-  const openPositionsValue = positions.reduce((acc, pos) => {
-    const isBuy = pos.signalType === 'BUY';
-    const priceDiff = isBuy 
-      ? pos.currentPrice - pos.entryPrice
-      : pos.entryPrice - pos.currentPrice;
-    return acc + (pos.quantity * pos.entryPrice) + (pos.quantity * priceDiff);
+  // Helper values
+  const totalPnL = positions.reduce((acc, pos) => {
+    const diff = pos.signalType === 'BUY' 
+      ? (pos.currentPrice - pos.entryPrice) * pos.quantity
+      : (pos.entryPrice - pos.currentPrice) * pos.quantity;
+    return acc + diff;
   }, 0);
 
-  const totalEquity = balance + openPositionsValue;
-  const initialValue = 100000;
-  const portfolioReturnPercent = ((totalEquity - initialValue) / initialValue) * 100;
-  
-  const winCount = history.filter(h => h.result === 'WIN').length;
-  const winRate = history.length > 0 ? Math.round((winCount / history.length) * 100) : 0;
+  const totalPnLPercent = positions.length > 0 
+    ? (totalPnL / positions.reduce((acc, p) => acc + (p.quantity * p.entryPrice), 0)) * 100
+    : 0;
 
-  // Chart data showing equity curve growth
-  const chartData = [
-    { date: "Start", value: 0 },
-    ...history.slice().reverse().map((t, idx) => {
-      return {
-        date: t.date,
-        value: parseFloat((((history.slice(0, idx + 1).reduce((acc, cur) => acc + (cur.exitPrice - cur.entryPrice) * cur.quantity, 0)) / initialValue) * 100).toFixed(2))
-      };
-    })
-  ];
+  if (!mounted) return null;
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
@@ -220,293 +208,285 @@ export default function SimulatorPage() {
 
       <main className="flex-1 md:pl-[220px] p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto relative z-10">
         
-        {/* Title Header */}
-        <div className="mb-8 select-none flex justify-between items-center">
-          <div>
-            <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Portfolio Simulator</h1>
+        {/* Header Title Section */}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4 mb-6 select-none">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-[20px] font-medium text-frost font-sans leading-none">Paper Trading Simulator</h1>
             <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-              Systems Paper Trading - execute signals, manage allocations, and track simulated performance.
+              Test your strategy execution in real-time with virtual money. No real money required.
             </p>
           </div>
           <button 
             onClick={handleReset}
-            className="flex items-center gap-1.5 border border-border-dark bg-raised/40 text-[11px] text-muted hover:text-frost px-3 py-1.5 rounded-[6px] hover:border-[#374151] transition-colors"
+            className="flex items-center gap-1.5 text-[#EF4444] hover:text-[#FF5C5C] font-sans text-[12px] bg-[#EF4444]/10 border border-[#EF4444]/20 px-3 py-1.5 rounded-[6px] transition-colors"
           >
-            <RotateCcw size={11} /> Reset Portfolio
+            <RotateCcw className="w-3.5 h-3.5" /> Reset Simulator
           </button>
         </div>
 
-        {/* Top Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6 select-none">
-          
-          <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[6px]">
-            <div className="text-[11px] text-dim font-sans mb-1 font-normal uppercase tracking-wider">
-              Total Equity
-            </div>
-            <div className="text-[24px] font-mono font-bold text-frost leading-none">
-              ${totalEquity.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+        {/* TOP SECTION — Virtual Portfolio Summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 select-none">
+          {/* Card 1 */}
+          <div className="bg-[#111318]/50 border border-border-dark p-5 rounded-[12px] space-y-1">
+            <span className="text-[11px] text-muted uppercase tracking-wider font-sans font-medium block">Virtual Balance</span>
+            <div className="font-mono text-[28px] font-bold text-[#E2E8F0] tracking-tight">
+              ₹{balance.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
             </div>
           </div>
-
-          <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[6px]">
-            <div className="text-[11px] text-dim font-sans mb-1 font-normal uppercase tracking-wider">
-              Cash Balance
-            </div>
-            <div className="text-[24px] font-mono font-bold text-muted leading-none">
-              ${balance.toLocaleString('en-US', { maximumFractionDigits: 2 })}
-            </div>
-          </div>
-
-          <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[6px]">
-            <div className="text-[11px] text-dim font-sans mb-1 font-normal uppercase tracking-wider">
-              Portfolio Return
-            </div>
-            <div className={`text-[24px] font-mono font-bold leading-none ${portfolioReturnPercent >= 0 ? 'text-sig-green' : 'text-sig-red'}`}>
-              {portfolioReturnPercent >= 0 ? '+' : ''}{portfolioReturnPercent.toFixed(2)}%
+          {/* Card 2 */}
+          <div className="bg-[#111318]/50 border border-border-dark p-5 rounded-[12px] space-y-1">
+            <span className="text-[11px] text-muted uppercase tracking-wider font-sans font-medium block">Total Open P&amp;L</span>
+            <div className={`font-mono text-[28px] font-bold tracking-tight ${totalPnL >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+              {totalPnL >= 0 ? '+' : ''}₹{totalPnL.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              <span className="text-[12px] ml-1.5 opacity-80">({totalPnLPercent >= 0 ? '+' : ''}{totalPnLPercent.toFixed(2)}%)</span>
             </div>
           </div>
-
-          <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark p-4 rounded-[6px]">
-            <div className="text-[11px] text-dim font-sans mb-1 font-normal uppercase tracking-wider">
-              Win Rate
-            </div>
-            <div className="text-[24px] font-mono font-bold text-indigo leading-none">
-              {winRate}%
+          {/* Card 3 */}
+          <div className="bg-[#111318]/50 border border-border-dark p-5 rounded-[12px] space-y-1">
+            <span className="text-[11px] text-muted uppercase tracking-wider font-sans font-medium block">Open Positions</span>
+            <div className="font-sans text-[28px] font-bold text-frost tracking-tight">
+              {positions.length} active
             </div>
           </div>
         </div>
 
-        {/* Execution Hub Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* MIDDLE SECTION — Two Columns layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start mb-8">
           
-          {/* Active Setups / Execute Trades */}
-          <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark rounded-[6px] p-4 lg:col-span-1 flex flex-col">
-            <div className="flex items-center justify-between mb-3 border-b border-border-dark pb-2">
-              <span className="text-[11px] font-bold text-muted uppercase tracking-wider">
-                Actionable Signal Executions
-              </span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-muted">Alloc:</span>
-                <input
-                  type="text"
-                  value={tradeAmount}
-                  onChange={e => setTradeAmount(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-14 bg-void border border-border-dark text-[11px] text-frost text-right px-1 py-0.5 rounded font-mono focus:outline-none"
-                />
+          {/* Left Column - Open Positions list (60%) */}
+          <div className="lg:col-span-6 bg-surface/30 border border-border-dark p-5 rounded-[12px] space-y-4">
+            <div className="flex items-center gap-2 border-b border-border-dark/60 pb-3">
+              <Briefcase className="w-4 h-4 text-indigo" />
+              <h2 className="text-[13px] font-brand font-semibold text-frost uppercase tracking-wider">Open Positions</h2>
+            </div>
+
+            {positions.length === 0 ? (
+              <div className="py-12 text-center text-muted select-none">
+                <p className="text-[12px] font-sans">No open positions. Click a BUY signal on the right to enter a trade.</p>
               </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto max-h-[220px] space-y-2 pr-1.5">
-              {isLoadingSignals ? (
-                <div className="text-center py-6 text-[12px] text-muted">Loading signals...</div>
-              ) : signals.length > 0 ? (
-                signals.map((sig, idx) => (
-                  <div key={sig.id || idx} className="bg-void border border-border-dark/60 p-2.5 rounded-[6px] flex items-center justify-between">
-                    <div>
-                      <div className="text-[13px] font-semibold text-frost flex items-center gap-1.5 leading-none">
-                        {sig.ticker}
-                        <span className={`text-[9px] px-1 py-0.5 font-bold rounded ${
-                          sig.signalType === 'BUY' ? 'text-sig-green bg-sig-green/5' : 'text-sig-red bg-sig-red/5'
-                        }`}>
-                          {sig.signalType}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-muted font-mono mt-1">
-                        Entry: ${sig.entry || sig.entry_price}
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => handleExecuteTrade(sig)}
-                      className="border border-[#6366F1]/30 bg-[#6366F1]/10 text-indigo hover:bg-[#6366F1]/20 px-2 py-1 rounded text-[11px] font-sans font-medium flex items-center gap-1"
+            ) : (
+              <div className="space-y-3">
+                {positions.map((pos) => {
+                  const pnlAmt = pos.signalType === 'BUY'
+                    ? (pos.currentPrice - pos.entryPrice) * pos.quantity
+                    : (pos.entryPrice - pos.currentPrice) * pos.quantity;
+                  const pnlPct = (pnlAmt / (pos.quantity * pos.entryPrice)) * 100;
+                  
+                  return (
+                    <div 
+                      key={pos.id}
+                      className="bg-[#111318]/50 border border-border-dark p-3.5 rounded-[8px] flex items-center justify-between"
                     >
-                      <Play size={9} fill="currentColor" /> Execute
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-6 text-[12px] text-muted">No signals available.</div>
-              )}
-            </div>
-          </div>
-
-          {/* Equity Chart */}
-          <div className="bg-[#111318]/40 backdrop-blur-md border border-border-dark rounded-[6px] p-4 lg:col-span-2">
-            <span className="text-[11px] font-bold text-muted uppercase tracking-wider block mb-3">
-              Equity Gain Curve (%)
-            </span>
-            <div className="w-full h-[180px]">
-              {mounted && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                    <defs>
-                      <linearGradient id="simChartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#6366F1" stopOpacity="0.2"/>
-                        <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0"/>
-                      </linearGradient>
-                    </defs>
-                    <XAxis 
-                      dataKey="date" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#374151', fontSize: 10, fontFamily: 'var(--font-jetbrains-mono)' }} 
-                    />
-                    <YAxis hide={true} domain={['auto', 'auto']} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#111318', borderColor: '#1E2230', borderRadius: '6px', color: '#E2E8F0', fontSize: '11px' }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#6366F1" 
-                      strokeWidth={2} 
-                      fill="url(#simChartGradient)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-        </div>
-
-        {/* Open Positions Grid */}
-        <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark rounded-[6px] overflow-hidden mb-6">
-          <div className="px-4 py-3 bg-void border-b border-border-dark">
-            <span className="font-brand font-semibold text-[11px] text-muted tracking-wider uppercase">
-              ACTIVE PAPER POSITIONS ({positions.length})
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            {positions.length > 0 ? (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-void/50 border-b border-border-dark select-none">
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans">Ticker</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans">Type</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-right">Entry Price</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-right">Current Price</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-right">Position Value</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-right">Floating P&amp;L</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1E2230]/40 font-sans text-[13px] text-[#E2E8F0]">
-                  {positions.map((pos) => {
-                    const isBuy = pos.signalType === 'BUY';
-                    const diff = isBuy ? pos.currentPrice - pos.entryPrice : pos.entryPrice - pos.currentPrice;
-                    const pnlPercent = (diff / pos.entryPrice) * 100;
-                    const entryVal = pos.quantity * pos.entryPrice;
-                    const currentVal = entryVal + (pos.quantity * diff);
-
-                    return (
-                      <tr key={pos.id} className="hover:bg-[#1C1F28] transition-colors duration-150">
-                        <td className="p-3 font-semibold font-brand">{pos.ticker}</td>
-                        <td className="p-3">
-                          <span className={`text-[10px] px-1.5 py-0.5 font-bold rounded ${
-                            pos.signalType === 'BUY' ? 'text-sig-green bg-sig-green/5' : 'text-sig-red bg-sig-red/5'
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-brand font-bold text-[14px] text-frost tracking-wider">{pos.ticker}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-sans tracking-wide ${
+                            pos.signalType === 'BUY' ? 'bg-[#22C55E]/15 text-[#22C55E]' : 'bg-[#EF4444]/15 text-[#EF4444]'
                           }`}>
                             {pos.signalType}
                           </span>
-                        </td>
-                        <td className="p-3 font-mono text-right">${pos.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 font-mono text-right">${pos.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                        <td className="p-3 font-mono text-right">${currentVal.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
-                        <td className={`p-3 font-mono text-right font-semibold ${pnlPercent >= 0 ? 'text-sig-green' : 'text-sig-red'}`}>
-                          {pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%
-                        </td>
-                        <td className="p-3 text-center">
-                          <button
-                            onClick={() => handleClosePosition(pos)}
-                            className="border border-sig-red/30 hover:bg-sig-red/10 text-sig-red px-2 py-0.5 rounded text-[11px] transition-colors font-medium inline-flex items-center gap-1"
-                          >
-                            <XCircle size={10} /> Close
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div className="p-8 text-center text-[12px] text-muted font-sans bg-void/10 select-none">
-                No open simulated positions. Execute setups above to start trading.
+                        </div>
+                        <div className="text-[11px] text-muted flex gap-2">
+                          <span>Qty: {pos.quantity.toFixed(2)}</span>
+                          <span>·</span>
+                          <span>Entry: ₹{pos.entryPrice.toFixed(2)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 flex-shrink-0 select-none">
+                        <div className="text-right">
+                          <div className={`font-mono text-[14px] font-bold ${pnlAmt >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                            {pnlAmt >= 0 ? '+' : ''}₹{pnlAmt.toFixed(2)}
+                          </div>
+                          <div className={`font-mono text-[11px] ${pnlPct >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                            {pnlPct >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleClosePosition(pos)}
+                          className="bg-[#EF4444]/10 hover:bg-[#EF4444]/20 border border-[#EF4444]/20 text-[#EF4444] text-[11px] font-sans font-medium px-3 py-1.5 rounded-[6px] transition-all leading-none"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-        </div>
 
-        {/* Trade Log Table */}
-        <div className="bg-[#111318]/50 backdrop-blur-md border border-border-dark rounded-[6px] overflow-hidden">
-          <div className="px-4 py-3 bg-void border-b border-border-dark flex items-center justify-between select-none">
-            <span className="font-brand font-semibold text-[11px] text-muted tracking-wider uppercase">
-              COMPLETED PAPER TRADE LOG ({history.length})
-            </span>
+          {/* Right Column - Active Signals Trade triggers (40%) */}
+          <div className="lg:col-span-4 bg-surface/30 border border-border-dark p-5 rounded-[12px] space-y-4">
+            <div className="flex items-center gap-2 border-b border-border-dark/60 pb-3 select-none">
+              <TrendingUp className="w-4 h-4 text-indigo" />
+              <h2 className="text-[13px] font-brand font-semibold text-frost uppercase tracking-wider">Active Signals — Click to Trade</h2>
+            </div>
+
+            {isLoadingSignals ? (
+              <div className="space-y-2.5">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-12 bg-[#111318]/50 border border-border-dark rounded-[6px] animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {signals.map((sig) => (
+                  <div 
+                    key={sig.id}
+                    className="bg-[#111318]/50 border border-border-dark p-2.5 rounded-[8px] flex items-center justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-brand font-bold text-[12px] text-frost tracking-wider truncate">{sig.ticker}</div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted mt-0.5">
+                        <span className={sig.signalType === 'BUY' ? 'text-[#22C55E]' : 'text-[#EF4444]'}>{sig.signalType}</span>
+                        <span>·</span>
+                        <span>{sig.confidence}% Conf.</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleOpenTradeModal(sig)}
+                      className="bg-[#6366F1] hover:bg-[#8183F4] text-white text-[11px] font-sans font-medium px-3 py-1.5 rounded-[6px] transition-colors leading-none"
+                    >
+                      Trade
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            {history.length > 0 ? (
+        </div>
+
+        {/* BOTTOM SECTION — Trade History log */}
+        <div className="bg-surface/30 border border-border-dark p-5 rounded-[12px] space-y-4 select-none">
+          <div className="flex justify-between items-center border-b border-border-dark/60 pb-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-indigo" />
+              <h2 className="text-[13px] font-brand font-semibold text-frost uppercase tracking-wider">Trade History Logs</h2>
+            </div>
+            <span className="text-[11px] text-muted">{history.length} completed trades</span>
+          </div>
+
+          {history.length === 0 ? (
+            <div className="py-8 text-center text-muted">
+              <p className="text-[11px] font-sans">No completed trades yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-void/50 border-b border-border-dark select-none">
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans">Date</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans">Ticker</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans">Signal</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-right">Entry</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-right">Exit</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-center">Result</th>
-                    <th className="p-3 text-[10px] font-normal text-dim uppercase tracking-wide font-sans text-right">P&amp;L%</th>
+                  <tr className="border-b border-border-dark text-[10px] text-muted uppercase tracking-wider font-sans">
+                    <th className="pb-2">Date</th>
+                    <th className="pb-2">Ticker</th>
+                    <th className="pb-2">Type</th>
+                    <th className="pb-2 text-right">Entry</th>
+                    <th className="pb-2 text-right">Exit</th>
+                    <th className="pb-2 text-center">Result</th>
+                    <th className="pb-2 text-right">P&amp;L%</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1E2230]/40 font-sans text-[13px] text-[#E2E8F0]">
-                  {history.map((trade, idx) => (
-                    <tr
-                      key={trade.id}
-                      className={`transition-colors duration-150 hover:bg-[#1C1F28] ${
-                        idx % 2 === 0 ? 'bg-transparent' : 'bg-void/10'
-                      }`}
-                    >
-                      <td className="p-3 font-normal whitespace-nowrap">{trade.date}</td>
-                      <td className="p-3 font-medium whitespace-nowrap font-brand">{trade.ticker}</td>
-                      <td className="p-3 font-normal whitespace-nowrap">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
-                          trade.signalType === 'BUY' ? 'border-sig-green/20 text-sig-green' : 'border-sig-red/20 text-sig-red'
-                        }`}>
-                          {trade.signalType}
-                        </span>
+                <tbody className="divide-y divide-[#1E2230]/40 font-sans text-[12px] text-[#E2E8F0]">
+                  {history.map((h, idx) => (
+                    <tr key={h.id || idx} className="hover:bg-[#1C1F28]/20">
+                      <td className="py-2.5 whitespace-nowrap">{h.date}</td>
+                      <td className="py-2.5 font-brand font-bold tracking-wider">{h.ticker}</td>
+                      <td className="py-2.5 font-medium">
+                        <span className={h.signalType === 'BUY' ? 'text-[#22C55E]' : 'text-[#EF4444]'}>{h.signalType}</span>
                       </td>
-                      <td className="p-3 font-mono text-right whitespace-nowrap">${trade.entryPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 font-mono text-right whitespace-nowrap">${trade.exitPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                      <td className="p-3 font-medium text-center whitespace-nowrap">
-                        <span 
-                          className="text-[10px] px-1.5 py-0.5 rounded font-medium border"
-                          style={{
-                            backgroundColor: trade.result === 'WIN' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                            borderColor: trade.result === 'WIN' ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                            color: trade.result === 'WIN' ? '#22C55E' : '#EF4444'
-                          }}
-                        >
-                          {trade.result}
-                        </span>
+                      <td className="py-2.5 font-mono text-right whitespace-nowrap">₹{h.entryPrice.toFixed(2)}</td>
+                      <td className="py-2.5 font-mono text-right whitespace-nowrap">₹{h.exitPrice.toFixed(2)}</td>
+                      <td className="py-2.5 text-center whitespace-nowrap font-medium">
+                        <span className={h.result === 'WIN' ? 'text-[#22C55E]' : 'text-[#EF4444]'}>{h.result}</span>
                       </td>
-                      <td className={`p-3 font-mono text-right whitespace-nowrap font-semibold ${
-                        trade.pnl > 0 ? 'text-sig-green' : 'text-sig-red'
-                      }`}>
-                        {trade.pnl > 0 ? `+${trade.pnl.toFixed(2)}` : `${trade.pnl.toFixed(2)}`}%
+                      <td className={`py-2.5 font-mono text-right whitespace-nowrap ${h.pnl >= 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                        {h.pnl >= 0 ? '+' : ''}{h.pnl.toFixed(2)}%
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : (
-              <div className="p-8 text-center text-[12px] text-muted font-sans bg-void/10 select-none">
-                No closed paper trades. Closed positions will show up in this log.
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
       </main>
+
+      {/* Enter Trade Confirmation Overlay Modal */}
+      <AnimatePresence>
+        {selectedSignalForTrade && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedSignalForTrade(null)}
+              className="fixed inset-0 bg-black z-40"
+            />
+            {/* Modal Dialog */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              transition={{ duration: 0.2 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm bg-surface border border-border-dark rounded-[12px] p-6 z-50 text-frost font-sans shadow-2xl space-y-5"
+            >
+              <div className="space-y-1 select-none">
+                <h3 className="text-[14px] font-brand font-semibold text-frost uppercase tracking-widest">Confirm Simulation Order</h3>
+                <p className="text-[11px] text-muted">Set target allocation to execute virtual trade.</p>
+              </div>
+
+              {/* Order Stats */}
+              <div className="bg-void p-3 rounded-[6px] border border-border-dark text-[12px] space-y-1.5">
+                <div className="flex justify-between"><span>Ticker:</span> <span className="font-brand font-bold text-indigo">{selectedSignalForTrade.ticker}</span></div>
+                <div className="flex justify-between"><span>Trade Type:</span> <span className={selectedSignalForTrade.signalType === 'BUY' ? 'text-[#22C55E] font-bold' : 'text-[#EF4444] font-bold'}>{selectedSignalForTrade.signalType}</span></div>
+                <div className="flex justify-between"><span>Asset Price:</span> <span className="font-mono text-frost">₹{(selectedSignalForTrade.entry || selectedSignalForTrade.entryPrice || 100).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>Estimated Shares:</span> <span className="font-mono text-frost">{(tradeAmount / (selectedSignalForTrade.entry || selectedSignalForTrade.entryPrice || 100)).toFixed(2)}</span></div>
+              </div>
+
+              {/* Slider Allocation */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-[11px] font-sans font-medium text-muted">
+                  <span>Investment Amount:</span>
+                  <span className="font-mono text-indigo font-bold text-[13px]">₹{tradeAmount.toLocaleString('en-IN')}</span>
+                </div>
+                <input
+                  type="range"
+                  min="1000"
+                  max="10000"
+                  step="500"
+                  value={tradeAmount}
+                  onChange={(e) => setTradeAmount(parseInt(e.target.value, 10))}
+                  className="w-full accent-indigo h-1 bg-[#1C1F28] rounded-lg appearance-none cursor-pointer border border-[#1E2230]"
+                />
+                <div className="flex justify-between text-[9px] text-[#374151] font-mono select-none">
+                  <span>Min ₹1,000</span>
+                  <span>Max ₹10,000</span>
+                </div>
+              </div>
+
+              {/* Modal Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSelectedSignalForTrade(null)}
+                  className="flex-1 bg-void hover:bg-raised border border-border-dark text-muted hover:text-frost text-[12px] font-sans font-semibold py-2 rounded-[6px] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmTrade}
+                  className="flex-1 bg-[#6366F1] hover:bg-[#8183F4] text-white text-[12px] font-sans font-semibold py-2 rounded-[6px] transition-colors shadow-lg"
+                >
+                  Confirm Order
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

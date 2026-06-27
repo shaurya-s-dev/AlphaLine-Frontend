@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { AnimatedBackground } from '@/components/AnimatedBackground';
 import { useRouter } from 'next/navigation';
-import { LayoutDashboard, Star, Activity, ShieldAlert, Terminal } from 'lucide-react';
+import { Activity, Play, TrendingUp, Award, Calendar, BarChart2, List } from 'lucide-react';
+import { toast } from 'sonner';
 
-// Count-up helper component using requestAnimationFrame
+// Count-up helper component
 function CountUp({ 
   value, 
   duration = 800, 
@@ -47,7 +49,6 @@ export default function BacktestPage() {
   const router = useRouter();
   const [ticker, setTicker] = useState('RELIANCE.NS');
   
-  // Default dates: last 30 days
   const todayStr = new Date().toISOString().split('T')[0];
   const thirtyDaysAgoStr = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0];
   
@@ -57,24 +58,36 @@ export default function BacktestPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any | null>(null);
+  
+  // Results view sub-tab
+  const [activeTab, setActiveTab] = useState<'chart' | 'trades'>('chart');
+  const [activePreset, setActivePreset] = useState('1M');
 
-  // Set page title on mount
   useEffect(() => {
     document.title = "Alphaline — Strategy Backtesting";
   }, []);
 
-  const handleNavClick = (tabName: string) => {
-    if (tabName === 'Dashboard') {
-      router.push('/dashboard');
-    } else if (tabName === 'Watchlist') {
-      router.push('/dashboard?tab=Watchlist');
-    } else if (tabName === 'Backtest') {
-      router.push('/backtest');
-    } else if (tabName === 'Risk') {
-      router.push('/risk');
-    } else if (tabName === 'API') {
-      router.push('/api-docs');
-    }
+  // Quick Ticker handler
+  const handleQuickTicker = (sym: string) => {
+    setTicker(sym);
+    toast.success(`Ticker set to ${sym}`);
+  };
+
+  // Date Presets handler
+  const handlePreset = (preset: string) => {
+    setActivePreset(preset);
+    const end = new Date();
+    let start = new Date();
+
+    if (preset === '7D') start.setDate(end.getDate() - 7);
+    else if (preset === '1M') start.setDate(end.getDate() - 30);
+    else if (preset === '3M') start.setDate(end.getDate() - 90);
+    else if (preset === '6M') start.setDate(end.getDate() - 180);
+    else if (preset === '1Y') start.setDate(end.getDate() - 365);
+
+    setFrom(start.toISOString().split('T')[0]);
+    setTo(end.toISOString().split('T')[0]);
+    toast.success(`Date range set to last ${preset}`);
   };
 
   const handleRunBacktest = async (e: React.FormEvent) => {
@@ -92,9 +105,8 @@ export default function BacktestPage() {
       }
       const data = await response.json();
       
-      // Enforce premium simulated computation delay of 1200ms
       const elapsed = Date.now() - startTime;
-      const remaining = 1200 - elapsed;
+      const remaining = 1000 - elapsed;
       if (remaining > 0) {
         await new Promise((resolve) => setTimeout(resolve, remaining));
       }
@@ -105,27 +117,21 @@ export default function BacktestPage() {
         setError(data.error || "Failed to load backtest data");
       }
     } catch (err: any) {
-      const elapsed = Date.now() - startTime;
-      const remaining = 1200 - elapsed;
-      if (remaining > 0) {
-        await new Promise((resolve) => setTimeout(resolve, remaining));
-      }
       setError(err.message || "Failed to execute backtest query");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Generate dynamic equity curve paths from results signals
+  // Generate SVG Equity curves
   const getEquityCurvePaths = () => {
     if (!results || !results.signals || results.signals.length === 0) {
-      // Fallback premium curve path
       const line = "M 0 85 L 100 75 L 200 90 L 300 50 L 400 65 L 500 35 L 600 20";
       const fill = `${line} L 600 120 L 0 120 Z`;
       return { line, fill };
     }
 
-    const trades = [...results.signals].reverse(); // cronological order
+    const trades = [...results.signals].reverse();
     let cumulative = 100;
     const equityValues = [cumulative];
     
@@ -160,419 +166,273 @@ export default function BacktestPage() {
 
   const curve = results ? getEquityCurvePaths() : null;
 
-  // Mobile Bottom Nav items list
-  const navItems = [
-    { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { name: 'Watchlist', icon: <Star className="w-5 h-5" /> },
-    { name: 'Backtest', icon: <Activity className="w-5 h-5" /> },
-    { name: 'Risk', icon: <ShieldAlert className="w-5 h-5" /> },
-    { name: 'API', icon: <Terminal className="w-5 h-5" /> },
-  ];
+  // Signal Strategy Performance logic
+  const getStrategyBadge = (winRate: number) => {
+    if (winRate > 70) {
+      return { label: "Strong Strategy ✓", styles: "bg-[#22C55E]/15 border-[#22C55E]/30 text-[#22C55E]" };
+    }
+    if (winRate >= 50) {
+      return { label: "Moderate Strategy", styles: "bg-[#F59E0B]/15 border-[#F59E0B]/30 text-[#F59E0B]" };
+    }
+    return { label: "Weak Strategy", styles: "bg-[#EF4444]/15 border-[#EF4444]/30 text-[#EF4444]" };
+  };
 
   return (
     <div className="min-h-screen bg-void text-frost flex flex-col font-sans">
       <Sidebar activeTab="Backtest" />
+      <AnimatedBackground />
 
-      <main className="flex-1 md:pl-[220px] p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto">
+      <main className="flex-1 md:pl-[220px] p-6 pb-24 md:pb-6 max-w-5xl w-full mx-auto relative z-10">
+        
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 select-none">
           <h1 className="text-[20px] font-medium text-frost mb-1.5 font-sans leading-none">Strategy Backtesting</h1>
           <p className="text-[13px] text-muted font-sans font-normal leading-normal">
-            Validate the accuracy and performance of confluence signals on historical records.
+            Test how our AI signals would have performed on historical price data. Enter a ticker and date range to see simulated trade outcomes.
           </p>
         </div>
 
-        {/* Backtest Workspace Grid */}
+        {/* Backtest Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
-          {/* Left Panel: Query Inputs */}
-          <div className="bg-surface border border-border-dark p-5 rounded-[6px] lg:col-span-1">
-            <h3 className="text-[14px] font-medium text-frost mb-4 leading-none">Parameters</h3>
+          {/* Left Column Parameters */}
+          <div className="bg-[#111318]/50 border border-border-dark p-5 rounded-[12px] lg:col-span-1 space-y-4">
+            <h3 className="text-[14px] font-brand font-semibold text-frost uppercase tracking-wider">Parameters</h3>
             
             <form onSubmit={handleRunBacktest} className="space-y-4">
-              <div>
-                <label className="block text-[11px] text-dim font-sans mb-1.5">Ticker Symbol</label>
+              {/* Ticker Input */}
+              <div className="space-y-2">
+                <label className="block text-[11px] text-muted font-sans uppercase tracking-wider">Ticker Symbol</label>
                 <input
                   type="text"
                   required
                   value={ticker}
                   onChange={(e) => setTicker(e.target.value.toUpperCase())}
                   placeholder="e.g. RELIANCE.NS, AAPL"
-                  className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-mono focus:outline-none focus:border-indigo uppercase placeholder:text-dim"
+                  className="w-full bg-void border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-mono focus:outline-none focus:border-indigo uppercase placeholder:text-dim"
                 />
+                {/* Quick Chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1 select-none">
+                  {["RELIANCE.NS", "TCS.NS", "AAPL", "NVDA", "MSFT"].map((sym) => (
+                    <button
+                      type="button"
+                      key={sym}
+                      onClick={() => handleQuickTicker(sym)}
+                      className="bg-[#1C1F28] border border-[#1E2230] hover:border-indigo/50 text-[#6B7280] hover:text-frost px-2 py-0.5 rounded text-[10px] font-mono transition-colors"
+                    >
+                      {sym.replace('.NS', '')}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] text-dim font-sans mb-1.5">Start Date</label>
+              {/* Start Date */}
+              <div className="space-y-1">
+                <label className="block text-[11px] text-muted font-sans uppercase tracking-wider">Start Date</label>
                 <input
                   type="date"
                   required
                   value={from}
                   onChange={(e) => setFrom(e.target.value)}
-                  className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-sans focus:outline-none focus:border-indigo"
+                  className="w-full bg-void border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-sans focus:outline-none focus:border-indigo"
                 />
               </div>
 
-              <div>
-                <label className="block text-[11px] text-dim font-sans mb-1.5">End Date</label>
+              {/* End Date */}
+              <div className="space-y-1">
+                <label className="block text-[11px] text-muted font-sans uppercase tracking-wider">End Date</label>
                 <input
                   type="date"
                   required
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
-                  className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-sans focus:outline-none focus:border-indigo"
+                  className="w-full bg-void border border-border-dark text-[13px] text-frost p-2 rounded-[6px] font-sans focus:outline-none focus:border-indigo"
                 />
               </div>
 
+              {/* Date Presets */}
+              <div className="space-y-2 select-none">
+                <label className="block text-[11px] text-muted font-sans uppercase tracking-wider">Preset Range</label>
+                <div className="flex gap-1 bg-void p-1 rounded-[6px] border border-border-dark">
+                  {['7D', '1M', '3M', '6M', '1Y'].map((preset) => (
+                    <button
+                      type="button"
+                      key={preset}
+                      onClick={() => handlePreset(preset)}
+                      className={`flex-1 py-1 rounded text-[11px] font-sans font-medium transition-all ${
+                        activePreset === preset ? 'bg-[#6366F1] text-white' : 'text-muted hover:text-frost'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-indigo text-white text-[13px] font-medium py-2 rounded-[6px] hover:bg-[#5254DE] transition-colors duration-150 leading-none mt-2 disabled:opacity-50 flex items-center justify-center min-h-[36px]"
+                className="w-full bg-[#6366F1] hover:bg-[#8183F4] text-white text-[13px] font-medium py-2 rounded-[6px] transition-colors leading-none disabled:opacity-50 flex items-center justify-center min-h-[38px] shadow-lg"
               >
                 {isLoading ? (
                   <div className="flex items-center gap-2">
-                    <div className="spinner" />
-                    <span>Running...</span>
+                    <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    <span>Executing Strategy...</span>
                   </div>
                 ) : (
-                  "Run backtest"
+                  <span className="flex items-center gap-1"><Play className="w-3.5 h-3.5 fill-current" /> Run Backtest</span>
                 )}
               </button>
             </form>
           </div>
 
-          {/* Right Panel: Results View */}
+          {/* Right Column Results */}
           <div className="lg:col-span-2 space-y-6">
             {isLoading ? (
-              /* Loading Skeleton state when running */
-              <div className="border border-border-dark bg-surface p-6 rounded-[6px] space-y-6">
-                <div className="h-[120px] bg-[#111318] border border-border-dark rounded-[6px] p-4 flex flex-col justify-center space-y-3 relative overflow-hidden">
-                  <div className="h-3 bg-raised rounded-[6px] w-[55%] shimmer-line" />
-                  <div className="h-3 bg-raised rounded-[6px] w-[75%] shimmer-line" />
-                  <div className="h-3 bg-raised rounded-[6px] w-[40%] shimmer-line" />
-                </div>
+              <div className="border border-border-dark bg-surface/50 p-6 rounded-[12px] space-y-6">
+                <div className="h-[120px] bg-[#111318]/50 border border-border-dark rounded-[6px] p-4 flex flex-col justify-center space-y-3 relative overflow-hidden animate-pulse" />
                 <div className="grid grid-cols-3 gap-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-surface border border-border-dark p-4 rounded-[6px] space-y-2 relative overflow-hidden">
-                      <div className="h-3 bg-raised rounded-[6px] w-[45%] shimmer-line" />
-                      <div className="h-8 bg-raised rounded-[6px] w-[70%] shimmer-line" />
-                    </div>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-20 bg-[#111318]/50 border border-border-dark rounded-[6px] animate-pulse" />
                   ))}
                 </div>
               </div>
             ) : error ? (
-              /* Error Display */
-              <div className="border border-sig-red/20 bg-sig-red/5 p-8 text-center rounded-[6px]">
+              <div className="border border-sig-red/20 bg-sig-red/5 p-8 text-center rounded-[12px]">
                 <p className="text-[13px] text-sig-red font-sans font-medium">{error}</p>
               </div>
             ) : results && curve ? (
-              /* Backtesting Results (with fadeIn animation class) */
-              <div className="space-y-6 animate-fade-in">
+              <div className="space-y-6 animate-slide-in">
                 
-                {/* Stats Row with CountUp animation */}
+                {/* Accuracy cards and win rates */}
                 <div className="grid grid-cols-3 gap-4">
-                  {/* Accuracy Card */}
-                  <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
-                    <div className="text-[12px] text-dim font-sans mb-1.5 font-normal leading-none">Signal accuracy</div>
-                    <div className="text-[32px] font-mono font-medium text-frost leading-none">
-                      <CountUp value={parseFloat(results.accuracy) || 0} decimalPlaces={0} suffix="%" />
-                    </div>
+                  <div className="bg-[#111318]/50 border border-border-dark p-4 rounded-[12px] flex flex-col justify-between">
+                    <span className="text-[11px] text-muted font-sans uppercase tracking-wider block mb-1">accuracy</span>
+                    <span className="text-[28px] font-mono font-bold text-frost">
+                      <CountUp value={parseFloat(results.accuracy) || 0} suffix="%" />
+                    </span>
                   </div>
 
-                  {/* Win Rate Card */}
-                  <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
-                    <div className="text-[12px] text-dim font-sans mb-1.5 font-normal leading-none">Win rate</div>
-                    <div className="text-[32px] font-mono font-medium text-frost leading-none">
-                      <CountUp value={parseFloat(results.winRate) || 0} decimalPlaces={0} suffix="%" />
-                    </div>
+                  <div className="bg-[#111318]/50 border border-border-dark p-4 rounded-[12px] flex flex-col justify-between">
+                    <span className="text-[11px] text-muted font-sans uppercase tracking-wider block mb-1">win rate</span>
+                    <span className="text-[28px] font-mono font-bold text-frost">
+                      <CountUp value={parseFloat(results.winRate) || 0} suffix="%" />
+                    </span>
                   </div>
 
-                  {/* Avg RR Card */}
-                  <div className="bg-surface border border-border-dark p-4 rounded-[6px]">
-                    <div className="text-[12px] text-dim font-sans mb-1.5 font-normal leading-none">Avg R:R</div>
-                    <div className="text-[32px] font-mono font-medium text-frost leading-none">
+                  <div className="bg-[#111318]/50 border border-border-dark p-4 rounded-[12px] flex flex-col justify-between">
+                    <span className="text-[11px] text-muted font-sans uppercase tracking-wider block mb-1">avg r:r</span>
+                    <span className="text-[28px] font-mono font-bold text-frost">
                       <CountUp value={parseFloat(results.avgRR) || 0} decimalPlaces={1} suffix="x" />
+                    </span>
+                  </div>
+                </div>
+
+                {/* Strategy Rating Badge */}
+                {results.winRate && (
+                  <div className={`p-3 rounded-[8px] border text-center text-[12px] font-sans font-semibold flex items-center justify-center gap-1.5 ${getStrategyBadge(results.winRate).styles}`}>
+                    <Award className="w-4 h-4" /> {getStrategyBadge(results.winRate).label}
+                  </div>
+                )}
+
+                {/* Tab Switcher */}
+                <div className="flex border-b border-border-dark select-none">
+                  <button
+                    onClick={() => setActiveTab('chart')}
+                    className={`pb-2 px-4 text-[13px] font-medium font-sans border-b-2 transition-colors flex items-center gap-1.5 ${
+                      activeTab === 'chart' ? 'border-[#6366F1] text-indigo' : 'border-transparent text-muted hover:text-frost'
+                    }`}
+                  >
+                    <BarChart2 className="w-4 h-4" /> Equity Curve
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('trades')}
+                    className={`pb-2 px-4 text-[13px] font-medium font-sans border-b-2 transition-colors flex items-center gap-1.5 ${
+                      activeTab === 'trades' ? 'border-[#6366F1] text-indigo' : 'border-transparent text-muted hover:text-frost'
+                    }`}
+                  >
+                    <List className="w-4 h-4" /> Trade Log ({results.signals.length})
+                  </button>
+                </div>
+
+                {/* Tab Content */}
+                {activeTab === 'chart' ? (
+                  <div className="bg-[#111318]/50 border border-border-dark rounded-[12px] p-4 flex flex-col justify-between h-[200px] overflow-hidden">
+                    <div className="flex justify-between items-center mb-2 select-none">
+                      <span className="text-[10px] font-medium text-muted uppercase tracking-wider font-sans">Portfolio Equity Growth</span>
+                      <span className="text-[11px] font-mono text-sig-green font-medium">+{((results.winRate * results.avgRR) - ((100 - results.winRate) * 0.5)).toFixed(1)}% Est. Gain</span>
+                    </div>
+                    
+                    <div className="flex-1 relative w-full h-[120px]">
+                      <svg viewBox="0 0 600 120" width="100%" height="100%" preserveAspectRatio="none" className="block">
+                        <defs>
+                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#6366F1" stopOpacity="0.2"/>
+                            <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0"/>
+                          </linearGradient>
+                        </defs>
+                        <path d={curve.fill} fill="url(#chartGradient)" />
+                        <path d={curve.line} fill="none" stroke="#6366F1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
                     </div>
                   </div>
-                </div>
-
-                {/* Equity Curve SVG Chart */}
-                <div className="bg-[#111318] border border-border-dark rounded-[6px] p-4 flex flex-col justify-between h-[180px] overflow-hidden">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[11px] font-normal text-dim uppercase tracking-wider font-sans">Portfolio Equity Growth</span>
-                    <span className="text-[11px] font-mono text-sig-green font-medium">+{((results.winRate * results.avgRR) - ((100 - results.winRate) * 0.5)).toFixed(1)}% Est. Gain</span>
-                  </div>
-                  
-                  <div className="flex-1 relative w-full h-[120px]">
-                    <svg viewBox="0 0 600 120" width="100%" height="100%" preserveAspectRatio="none" className="block">
-                      <defs>
-                        <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#6366F1" stopOpacity="0.25"/>
-                          <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0"/>
-                        </linearGradient>
-                      </defs>
-                      {/* Gradient Fill under path */}
-                      <path 
-                        d={curve.fill} 
-                        fill="url(#chartGradient)" 
-                        className="animate-fill" 
-                      />
-                      {/* Stroke Line */}
-                      <path 
-                        d={curve.line} 
-                        fill="none" 
-                        stroke="#6366F1" 
-                        strokeWidth="1.5" 
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="animate-path" 
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Signals Table */}
-                <div className="bg-surface border border-border-dark rounded-[6px] overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-void border-b border-border-dark">
-                          <th className="p-3 text-[11px] font-normal text-dim uppercase tracking-wide font-sans">Date</th>
-                          <th className="p-3 text-[11px] font-normal text-dim uppercase tracking-wide font-sans">Signal</th>
-                          <th className="p-3 text-[11px] font-normal text-dim uppercase tracking-wide font-sans text-right">Entry</th>
-                          <th className="p-3 text-[11px] font-normal text-dim uppercase tracking-wide font-sans text-right">Exit</th>
-                          <th className="p-3 text-[11px] font-normal text-dim uppercase tracking-wide font-sans text-center">Result</th>
-                          <th className="p-3 text-[11px] font-normal text-dim uppercase tracking-wide font-sans text-right">P&L%</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#1E2230]/50 font-sans text-[13px] text-frost">
-                        {results.signals.map((trade: any, idx: number) => (
-                          <tr
-                            key={trade.id || idx}
-                            className={`transition-colors duration-150 hover:bg-raised ${
-                              idx % 2 === 0 ? 'bg-transparent' : 'bg-void'
-                            }`}
-                          >
-                            <td className="p-3 font-normal whitespace-nowrap">{trade.date}</td>
-                            <td className="p-3 font-medium whitespace-nowrap">
-                              <span className={trade.signal === 'BUY' ? 'text-sig-green' : 'text-sig-red'}>
-                                {trade.signal}
-                              </span>
-                            </td>
-                            <td className="p-3 font-mono text-right whitespace-nowrap">{trade.entry.toFixed(2)}</td>
-                            <td className="p-3 font-mono text-right whitespace-nowrap">{trade.exit.toFixed(2)}</td>
-                            <td className="p-3 font-medium text-center whitespace-nowrap">
-                              <span className={trade.result === 'WIN' ? 'text-sig-green' : 'text-sig-red'}>
-                                {trade.result}
-                              </span>
-                            </td>
-                            <td className={`p-3 font-mono text-right whitespace-nowrap ${
-                              trade.pnl > 0 ? 'text-sig-green' : 'text-sig-red'
-                            }`}>
-                              {trade.pnl > 0 ? `+${trade.pnl.toFixed(2)}` : `${trade.pnl.toFixed(2)}`}%
-                            </td>
+                ) : (
+                  <div className="bg-surface/30 border border-border-dark rounded-[12px] overflow-hidden">
+                    <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-void border-b border-border-dark select-none">
+                            <th className="p-3 text-[10px] font-normal text-muted uppercase tracking-wider font-sans">Date</th>
+                            <th className="p-3 text-[10px] font-normal text-muted uppercase tracking-wider font-sans">Signal</th>
+                            <th className="p-3 text-[10px] font-normal text-muted uppercase tracking-wider font-sans text-right">Entry</th>
+                            <th className="p-3 text-[10px] font-normal text-muted uppercase tracking-wider font-sans text-right">Exit</th>
+                            <th className="p-3 text-[10px] font-normal text-muted uppercase tracking-wider font-sans text-center">Result</th>
+                            <th className="p-3 text-[10px] font-normal text-muted uppercase tracking-wider font-sans text-right">P&L%</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-[#1E2230]/40 font-sans text-[12px] text-[#E2E8F0]">
+                          {results.signals.map((trade: any, idx: number) => (
+                            <tr key={trade.id || idx} className={`hover:bg-[#1C1F28]/30 ${idx % 2 === 0 ? 'bg-transparent' : 'bg-void/40'}`}>
+                              <td className="p-3 whitespace-nowrap">{trade.date}</td>
+                              <td className="p-3 whitespace-nowrap font-medium">
+                                <span className={trade.signal === 'BUY' ? 'text-[#22C55E]' : 'text-[#EF4444]'}>{trade.signal}</span>
+                              </td>
+                              <td className="p-3 font-mono text-right whitespace-nowrap">{trade.entry.toFixed(2)}</td>
+                              <td className="p-3 font-mono text-right whitespace-nowrap">{trade.exit.toFixed(2)}</td>
+                              <td className="p-3 text-center whitespace-nowrap font-medium">
+                                <span className={trade.result === 'WIN' ? 'text-[#22C55E]' : 'text-[#EF4444]'}>{trade.result}</span>
+                              </td>
+                              <td className={`p-3 font-mono text-right whitespace-nowrap ${trade.pnl > 0 ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                                {trade.pnl > 0 ? `+${trade.pnl.toFixed(2)}` : `${trade.pnl.toFixed(2)}`}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
             ) : (
-              /* Initial Empty state: Premium chart shimmer skeleton + side-by-side card skeletons */
-              <div className="border border-border-dark bg-surface p-6 rounded-[6px] space-y-6">
-                {/* Skeleton Chart */}
+              // Empty/Default Shimmer Skeleton
+              <div className="border border-border-dark bg-[#111318]/50 p-6 rounded-[12px] space-y-6 select-none">
                 <div className="h-[120px] bg-[#111318] border border-border-dark rounded-[6px] p-4 flex flex-col justify-center space-y-3 relative overflow-hidden">
-                  <div className="h-3 bg-raised rounded-[6px] w-[45%] shimmer-line" />
-                  <div className="h-3 bg-raised rounded-[6px] w-[70%] shimmer-line" />
-                  <div className="h-3 bg-raised rounded-[6px] w-[30%] shimmer-line" />
+                  <div className="h-3 bg-raised rounded-[6px] w-[45%]" />
+                  <div className="h-3 bg-raised rounded-[6px] w-[70%]" />
                 </div>
-                
-                {/* Skeletons Stats Grid */}
                 <div className="grid grid-cols-3 gap-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-surface border border-border-dark p-4 rounded-[6px] space-y-2 relative overflow-hidden">
-                      <div className="h-3 bg-raised rounded-[6px] w-[50%] shimmer-line" />
-                      <div className="h-8 bg-raised rounded-[6px] w-[75%] shimmer-line" />
-                    </div>
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-16 bg-[#111318] border border-border-dark rounded-[6px]" />
                   ))}
-                </div>
-
-                {/* Guiding Helper Text */}
-                <div className="text-center pt-2">
-                  <h3 className="text-[14px] font-medium text-frost mb-1 font-sans">Ready to Analyze</h3>
-                  <p className="text-[12px] text-muted max-w-xs mx-auto font-sans leading-normal">
-                    Configure a ticker and date range in the parameter panel to compute strategy performance metrics.
-                  </p>
                 </div>
               </div>
             )}
           </div>
 
         </div>
-
-        {/* Signal Accuracy Section */}
-        <div className="mt-8 pt-8 border-t border-border-dark/60 select-none">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-start md:items-center gap-4 mb-5">
-            <div>
-              <h2 className="text-[15px] font-brand font-semibold text-frost uppercase tracking-wider">
-                Signal Accuracy Tracker
-              </h2>
-              <p className="text-[12px] text-muted font-sans mt-0.5">
-                Historical win-rate performance breakdown across major tickers.
-              </p>
-            </div>
-            {/* Accuracy Summary */}
-            <div className="font-sans font-normal text-[13px] text-[#6B7280]">
-              Avg accuracy 74% &middot; Best: NVDA 82% &middot; Most signals: AAPL (15)
-            </div>
-          </div>
-
-          <div className="bg-surface border border-border-dark rounded-[6px] overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-void border-b border-border-dark text-[11px] font-normal text-dim uppercase tracking-wide font-sans">
-                    <th className="p-3">Ticker</th>
-                    <th className="p-3 text-center">Total Signals</th>
-                    <th className="p-3 text-right">BUY Acc%</th>
-                    <th className="p-3 text-right">SELL Acc%</th>
-                    <th className="p-3 text-right">Overall</th>
-                    <th className="p-3 text-center">Grade</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#1E2230]/40 font-sans text-[13px] text-frost">
-                  {[
-                    { ticker: 'RELIANCE.NS', total: 12, buyAcc: '75%', sellAcc: '68%', overall: 72, grade: 'B+' },
-                    { ticker: 'TCS.NS', total: 8, buyAcc: '80%', sellAcc: '72%', overall: 76, grade: 'A-' },
-                    { ticker: 'AAPL', total: 15, buyAcc: '82%', sellAcc: '70%', overall: 77, grade: 'A-' },
-                    { ticker: 'NVDA', total: 11, buyAcc: '88%', sellAcc: '75%', overall: 82, grade: 'A' },
-                    { ticker: 'INFY.NS', total: 9, buyAcc: '71%', sellAcc: '65%', overall: 68, grade: 'B' },
-                    { ticker: 'MSFT', total: 14, buyAcc: '85%', sellAcc: '78%', overall: 81, grade: 'A' },
-                    { ticker: 'GOOGL', total: 10, buyAcc: '80%', sellAcc: '70%', overall: 75, grade: 'B+' },
-                    { ticker: 'TSLA', total: 18, buyAcc: '72%', sellAcc: '60%', overall: 66, grade: 'B-' },
-                    { ticker: 'HDFCBANK.NS', total: 13, buyAcc: '77%', sellAcc: '69%', overall: 73, grade: 'B+' },
-                    { ticker: 'WIPRO.NS', total: 7, buyAcc: '70%', sellAcc: '62%', overall: 65, grade: 'C+' },
-                  ].map((row, idx) => {
-                    const getGradeColor = (g: string) => {
-                      if (g.startsWith('A')) {
-                        if (g === 'A-') return '#6366F1';
-                        return '#22C55E';
-                      }
-                      if (g.startsWith('B')) {
-                        if (g === 'B+') return '#6366F1';
-                        return '#F59E0B';
-                      }
-                      return '#EF4444';
-                    };
-                    const color = getGradeColor(row.grade);
-
-                    return (
-                      <tr 
-                        key={row.ticker}
-                        className={`transition-colors duration-100 hover:bg-raised ${
-                          idx % 2 === 0 ? 'bg-transparent' : 'bg-void/30'
-                        }`}
-                      >
-                        <td className="p-3 font-brand font-medium">{row.ticker}</td>
-                        <td className="p-3 text-center font-mono">{row.total}</td>
-                        <td className="p-3 text-right font-mono">{row.buyAcc}</td>
-                        <td className="p-3 text-right font-mono">{row.sellAcc}</td>
-                        <td className="p-3 text-right whitespace-nowrap min-w-[120px]">
-                          <div className="flex flex-col gap-1 items-end justify-center">
-                            <span className="font-mono">{row.overall}%</span>
-                            <div className="w-16 h-1 bg-raised rounded-full overflow-hidden">
-                              <div 
-                                className="h-full rounded-full transition-all duration-500" 
-                                style={{ width: `${row.overall}%`, backgroundColor: color }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3 text-center font-semibold">
-                          <span style={{ color: color }}>{row.grade}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
       </main>
-
-      {/* Mobile Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 h-16 border-t border-border-dark bg-surface flex justify-around items-center md:hidden z-20">
-        {navItems.map((item) => {
-          const isActive = item.name === 'Backtest';
-          return (
-            <button
-              key={item.name}
-              onClick={() => handleNavClick(item.name)}
-              className={`flex flex-col items-center justify-center w-12 h-full transition-colors duration-150 ${
-                isActive ? 'text-indigo' : 'text-muted hover:text-frost'
-              }`}
-            >
-              {item.icon}
-              <span className="text-[10px] font-sans mt-0.5 font-medium">{item.name}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Global CSS keyframes for custom animations */}
-      <style jsx global>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        .spinner {
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          border: 2px solid #1E2230;
-          border-top-color: #6366F1;
-          animation: spin 700ms linear infinite;
-        }
-
-        @keyframes shimmer {
-          from { background-position: -200% 0; }
-          to { background-position: 200% 0; }
-        }
-        .shimmer-line {
-          background: linear-gradient(90deg, #1C1F28 25%, #252836 50%, #1C1F28 75%);
-          background-size: 200% auto;
-          animation: shimmer 1.5s infinite linear;
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fadeIn 400ms ease-out forwards;
-        }
-
-        @keyframes drawPath {
-          to { stroke-dashoffset: 0; }
-        }
-        .animate-path {
-          stroke-dasharray: 1000;
-          stroke-dashoffset: 1000;
-          animation: drawPath 1200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        @keyframes fadeInFill {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-fill {
-          animation: fadeInFill 800ms ease-out forwards;
-          animation-delay: 400ms;
-          opacity: 0;
-        }
-      `}</style>
     </div>
   );
 }

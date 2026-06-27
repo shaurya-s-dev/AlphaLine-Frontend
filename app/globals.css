@@ -3,6 +3,26 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-void: #0D0F14;
+    --bg-surface: #111318;
+    --bg-raised: #1C1F28;
+    --border-dark: #1E2230;
+    --text-frost: #E2E8F0;
+    --text-muted: #6B7280;
+    --text-dim: #374151;
+  }
+
+  [data-theme="light"] {
+    --bg-void: #F8FAFC;
+    --bg-surface: #FFFFFF;
+    --bg-raised: #F1F5F9;
+    --border-dark: #E2E8F0;
+    --text-frost: #0F172A;
+    --text-muted: #64748B;
+    --text-dim: #94A3B8;
+  }
+
   body {
     @apply bg-void text-frost font-sans antialiased;
   }
