@@ -288,9 +288,24 @@ export function SignalCard({
               R:R {rrRatio.toFixed(1)}x
             </span>
           </div>
-          <span className="font-mono text-[11px] font-normal text-dim leading-none">
-            {formatAge(ageSeconds)}
-          </span>
+          <div className="flex flex-col items-end gap-1 select-none">
+            <span className="font-mono text-[11px] font-normal text-dim leading-none">
+              {formatAge(ageSeconds)}
+            </span>
+            {(() => {
+              const expiryDuration = 900; // 15 mins
+              const remaining = Math.max(0, expiryDuration - ageSeconds);
+              const m = Math.floor(remaining / 60);
+              const s = remaining % 60;
+              const text = remaining === 0 ? 'Expired' : `${m}m ${s}s left`;
+              const colorClass = remaining > 300 ? 'text-[#6B7280]' : remaining > 60 ? 'text-[#F59E0B] animate-pulse' : 'text-[#EF4444] animate-pulse';
+              return (
+                <span className={`font-mono text-[9px] font-bold leading-none ${colorClass}`}>
+                  ⏳ {text}
+                </span>
+              );
+            })()}
+          </div>
         </div>
       </div>
 

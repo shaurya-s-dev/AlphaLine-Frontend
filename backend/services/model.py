@@ -24,6 +24,16 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     price_position = features["price_position"]
     current_price = features["current_price"]
     
+    atr = features.get("atr", 0.02 * current_price)
+    macd = features.get("macd", 0.0)
+    macd_signal = features.get("macd_signal", 0.0)
+    macd_diff = features.get("macd_diff", 0.0)
+    bb_high = features.get("bb_high", current_price * 1.05)
+    bb_low = features.get("bb_low", current_price * 0.95)
+    bb_mid = features.get("bb_mid", current_price)
+    ema_9 = features.get("ema_9", current_price)
+    ema_21 = features.get("ema_21", current_price)
+    
     market = get_market(ticker)
     
     # Calculate a raw score between 0.0 and 1.0 representing bullishness.
@@ -41,14 +51,25 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     # 3. Price Position: lower (near 52w low) is bullish. range [0, 1] -> [+0.1, -0.1]
     pos_factor = (0.5 - price_position) * 0.2
     
-    # 4. Volume Delta: higher volume amplifies standard variance/score shift
+    # 4. Bollinger Bands factor: lower BB position is bullish. range [0, 1] -> [+0.08, -0.08]
+    bb_range = (bb_high - bb_low) if (bb_high > bb_low) else 1.0
+    bb_position = (current_price - bb_low) / bb_range
+    bb_factor = (0.5 - bb_position) * 0.16
+    
+    # 5. EMA Crossover factor: EMA 9 > EMA 21 (golden cross) is bullish. [+0.08, -0.08]
+    ema_factor = 0.08 if (ema_9 > ema_21) else -0.08
+    
+    # 6. MACD factor: MACD > signal or MACD diff > 0 is bullish. [+0.05, -0.05]
+    macd_factor = 0.05 if (macd > macd_signal or macd_diff > 0) else -0.05
+    
+    # 7. Volume Delta: higher volume amplifies standard variance/score shift
     vol_multiplier = min(1.5, max(0.8, volume_delta))
     
-    # 5. Random normal variance to prevent identical scores for different stocks
-    # Mean=0, StdDev=0.18
-    noise = random.normalvariate(0, 0.18)
+    # 8. Random normal variance to prevent identical scores for different stocks
+    # Mean=0, StdDev=0.15
+    noise = random.normalvariate(0, 0.15)
     
-    raw_score = base_score + rsi_factor + mom_factor + pos_factor + noise
+    raw_score = base_score + rsi_factor + mom_factor + pos_factor + bb_factor + ema_factor + macd_factor + noise
     
     # Apply volume scaling to push scores further away from center if high volume
     if raw_score > 0.5:
@@ -78,19 +99,19 @@ def generate_signal(ticker: str, features: dict) -> Signal:
         
     confidence = max(51, min(95, confidence))
     
-    # Levels calculation
+    # Levels calculation using ATR-based dynamic bounds
     if signal_type == "BUY":
         entry = current_price
-        stop_loss = entry * 0.98
-        target = entry * 1.04
+        stop_loss = max(0.01, entry - 2.0 * atr)
+        target = max(0.01, entry + 4.0 * atr)
     elif signal_type == "SELL":
         entry = current_price
-        stop_loss = entry * 1.02
-        target = entry * 0.96
+        stop_loss = max(0.01, entry + 2.0 * atr)
+        target = max(0.01, entry - 4.0 * atr)
     else:
         entry = current_price
-        stop_loss = entry * 0.99
-        target = entry * 1.01
+        stop_loss = max(0.01, entry - 1.0 * atr)
+        target = max(0.01, entry + 1.5 * atr)
 
     # Round results to 2 decimal places
     entry = round(entry, 2)

@@ -52,10 +52,58 @@ def compute_features(df: pd.DataFrame, ticker: str) -> dict:
         else:
             price_position = 0.5
 
+    # 5. ATR (14 period)
+    try:
+        atr_indicator = ta.volatility.AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
+        atr_series = atr_indicator.average_true_range()
+        atr = float(atr_series.iloc[-1]) if not atr_series.empty and pd.notna(atr_series.iloc[-1]) else 0.02 * close
+    except Exception as e:
+        print(f"Warning: ATR calculation failed: {e}")
+        atr = 0.02 * close
+
+    # 6. MACD
+    try:
+        macd_indicator = ta.trend.MACD(close=df['Close'])
+        macd = float(macd_indicator.macd().iloc[-1]) if not macd_indicator.macd().empty and pd.notna(macd_indicator.macd().iloc[-1]) else 0.0
+        macd_signal = float(macd_indicator.macd_signal().iloc[-1]) if not macd_indicator.macd_signal().empty and pd.notna(macd_indicator.macd_signal().iloc[-1]) else 0.0
+        macd_diff = float(macd_indicator.macd_diff().iloc[-1]) if not macd_indicator.macd_diff().empty and pd.notna(macd_indicator.macd_diff().iloc[-1]) else 0.0
+    except Exception as e:
+        print(f"Warning: MACD calculation failed: {e}")
+        macd, macd_signal, macd_diff = 0.0, 0.0, 0.0
+
+    # 7. Bollinger Bands
+    try:
+        bb_indicator = ta.volatility.BollingerBands(close=df['Close'])
+        bb_high = float(bb_indicator.bollinger_hband().iloc[-1]) if not bb_indicator.bollinger_hband().empty and pd.notna(bb_indicator.bollinger_hband().iloc[-1]) else close * 1.05
+        bb_low = float(bb_indicator.bollinger_lband().iloc[-1]) if not bb_indicator.bollinger_lband().empty and pd.notna(bb_indicator.bollinger_lband().iloc[-1]) else close * 0.95
+        bb_mid = float(bb_indicator.bollinger_mavg().iloc[-1]) if not bb_indicator.bollinger_mavg().empty and pd.notna(bb_indicator.bollinger_mavg().iloc[-1]) else close
+    except Exception as e:
+        print(f"Warning: BB calculation failed: {e}")
+        bb_high, bb_low, bb_mid = close * 1.05, close * 0.95, close
+
+    # 8. EMA Crossover (9/21)
+    try:
+        ema_9_series = ta.trend.EMAIndicator(close=df['Close'], window=9).ema_indicator()
+        ema_21_series = ta.trend.EMAIndicator(close=df['Close'], window=21).ema_indicator()
+        ema_9 = float(ema_9_series.iloc[-1]) if not ema_9_series.empty and pd.notna(ema_9_series.iloc[-1]) else close
+        ema_21 = float(ema_21_series.iloc[-1]) if not ema_21_series.empty and pd.notna(ema_21_series.iloc[-1]) else close
+    except Exception as e:
+        print(f"Warning: EMA calculation failed: {e}")
+        ema_9, ema_21 = close, close
+
     return {
         "rsi": rsi,
         "volume_delta": volume_delta,
         "momentum": momentum,
         "price_position": price_position,
-        "current_price": float(close)
+        "current_price": float(close),
+        "atr": atr,
+        "macd": macd,
+        "macd_signal": macd_signal,
+        "macd_diff": macd_diff,
+        "bb_high": bb_high,
+        "bb_low": bb_low,
+        "bb_mid": bb_mid,
+        "ema_9": ema_9,
+        "ema_21": ema_21
     }
