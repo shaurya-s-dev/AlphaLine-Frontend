@@ -129,7 +129,9 @@ export async function GET(request: Request) {
       const response = await docClient.send(new ScanCommand(scanParams));
       dbItems = response.Items || [];
       
-      // Sort in-memory descending by confidence score (since Scan doesn't support sorting)
+      const tickerMap = new Map<string, any>();
+      dbItems.forEach(item => { const t = item.PK?.replace(/^TICKER#/,'') || ''; if (!tickerMap.has(t) || item.SK > tickerMap.get(t).SK) tickerMap.set(t, item); });
+      dbItems = Array.from(tickerMap.values());
       dbItems.sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0));
     }
 

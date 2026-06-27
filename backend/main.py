@@ -77,6 +77,9 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "https://localhost:3000",
+    "https://alphaline-phi.vercel.app",
+    "https://*.vercel.app",
+    "*"  # remove after hackathon
 ]
 frontend_url = os.environ.get("FRONTEND_URL")
 if frontend_url:
