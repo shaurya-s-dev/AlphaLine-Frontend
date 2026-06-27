@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Activity, ShieldAlert, Terminal, LayoutDashboard, Star, Search, Download, Bell, AlertTriangle } from 'lucide-react';
+import { SearchBar } from '@/components/SearchBar';
+import { SortDropdown } from '@/components/SortDropdown';
 import { toast } from 'sonner';
 
 import Sidebar from '@/components/Sidebar';
@@ -97,7 +99,7 @@ function DashboardPageInner() {
   const [selectedMarket, setSelectedMarket] = useState<'All' | 'NSE' | 'BSE' | 'US'>('All');
   const [minConfidence, setMinConfidence] = useState(50);
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState<'confidence' | 'confidence-asc' | 'market' | 'type' | 'time'>('confidence');
+  const [sortBy, setSortBy] = useState('confidence_desc');
   const { collapsed } = useSidebar();
   
   // Signals data states
@@ -371,11 +373,10 @@ function DashboardPageInner() {
 
   // Apply sorting parameter mapping
   const sortedSignals = [...filteredSignals].sort((a, b) => {
-    if (sortBy === 'confidence') return (b.confidence || 0) - (a.confidence || 0);
-    if (sortBy === 'confidence-asc') return (a.confidence || 0) - (b.confidence || 0);
+    if (sortBy === 'confidence_desc') return (b.confidence || 0) - (a.confidence || 0);
+    if (sortBy === 'confidence_asc') return (a.confidence || 0) - (b.confidence || 0);
     if (sortBy === 'market') return a.market.localeCompare(b.market);
-    if (sortBy === 'type') return a.signalType.localeCompare(b.signalType);
-    if (sortBy === 'time') return b.id.localeCompare(a.id); 
+    if (sortBy === 'recent') return 0;
     return 0;
   });
 
@@ -484,65 +485,10 @@ function DashboardPageInner() {
             </span>
           </div>
 
-          {/* Search input in the top bar area */}
-          <div className="flex items-center gap-3 flex-1 justify-center max-w-sm hidden md:flex">
-            <div style={{
-              position: "relative",
-              display: "flex",
-              alignItems: "center",
-            }}>
-              <Search 
-                size={13} 
-                style={{ 
-                  position: "absolute", 
-                  left: 10, 
-                  color: "#374151",
-                  pointerEvents: "none"
-                }} 
-              />
-              <motion.input
-                type="text"
-                placeholder="Search ticker..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                whileFocus={{ width: 180 }}
-                initial={{ width: 140 }}
-                transition={{ duration: 0.2 }}
-                style={{
-                  background: "#1C1F28",
-                  border: "1px solid #1E2230",
-                  borderRadius: 6,
-                  height: 32,
-                  paddingLeft: 30,
-                  paddingRight: 12,
-                  fontFamily: "var(--font-inter)",
-                  fontSize: 12,
-                  color: "#E2E8F0",
-                  outline: "none",
-                }}
-                onFocus={e => e.target.style.borderColor = "#6366F1"}
-                onBlur={e => e.target.style.borderColor = "#1E2230"}
-              />
-              {search && (
-                <motion.button
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  onClick={() => setSearch("")}
-                  style={{
-                    position: "absolute",
-                    right: 8,
-                    background: "none",
-                    border: "none",
-                    color: "#374151",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    padding: 0,
-                  }}
-                >
-                  &times;
-                </motion.button>
-              )}
-            </div>
+          {/* Search + Sort controls */}
+          <div className="flex items-center gap-3 flex-1 justify-center max-w-md hidden md:flex">
+            <SearchBar value={search} onChange={setSearch} />
+            <SortDropdown value={sortBy} onChange={setSortBy} />
           </div>
 
           {/* Right Area: Market Status, Export & Indicator */}
@@ -741,21 +687,7 @@ function DashboardPageInner() {
                   ))}
                 </div>
 
-                {/* Sorting Dropdown */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted uppercase tracking-wider font-semibold whitespace-nowrap">Sort By:</span>
-                  <select
-                    value={sortBy}
-                    onChange={(e: any) => setSortBy(e.target.value)}
-                    className="bg-[#1C1F28] border border-border-dark text-[12px] text-frost p-1.5 rounded-[6px] focus:outline-none focus:border-indigo"
-                  >
-                    <option value="confidence">Confidence (High → Low)</option>
-                    <option value="confidence-asc">Confidence (Low → High)</option>
-                    <option value="market">Market Name</option>
-                    <option value="type">Signal Type</option>
-                    <option value="time">Time (Newest)</option>
-                  </select>
-                </div>
+
 
                 {/* Min Confidence Slider */}
                 <div className="flex items-center gap-4 w-full lg:w-auto max-w-[280px]">

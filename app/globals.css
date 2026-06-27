@@ -62,3 +62,54 @@
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite linear;
 }
+
+@keyframes glowing {
+  0% { background-position: 0 0; }
+  50% { background-position: 400% 0; }
+  100% { background-position: 0 0; }
+}
+
+.glow-button {
+  position: relative;
+  z-index: 0;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.glow-button::before {
+  content: '';
+  background: linear-gradient(
+    45deg, 
+    #6366F1, #8B5CF6, #06B6D4, 
+    #22C55E, #6366F1, #EF4444,
+    #F59E0B, #6366F1
+  );
+  position: absolute;
+  top: -2px; left: -2px;
+  background-size: 400%;
+  z-index: -1;
+  filter: blur(6px);
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+  animation: glowing 8s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  border-radius: 6px;
+}
+
+.glow-button:hover::before {
+  opacity: 1;
+}
+
+.glow-button::after {
+  z-index: -1;
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: #6366F1;
+  left: 0; top: 0;
+  border-radius: 6px;
+}

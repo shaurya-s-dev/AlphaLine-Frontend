@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { AnimatedBackground } from "@/components/AnimatedBackground";
+import { Boxes } from "@/components/ui/background-boxes";
 import SignalCard from "@/components/SignalCard";
 
 const containerVariants = {
@@ -83,11 +83,15 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-void text-frost flex flex-col justify-between items-center p-6 sm:p-12 overflow-hidden z-10">
-      <AnimatedBackground />
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#0D0F14] text-frost flex flex-col justify-between items-center p-6 sm:p-12">
+      {/* Dark overlay mask */}
+      <div className="absolute inset-0 w-full h-full bg-[#0D0F14] z-[1] [mask-image:radial-gradient(transparent,white)] pointer-events-none" />
+      
+      {/* Animated boxes background */}
+      <Boxes />
 
       {/* Header */}
-      <header className="w-full max-w-6xl flex justify-between items-center z-10">
+      <header className="w-full max-w-6xl flex justify-between items-center z-20 relative">
         <div className="font-brand font-semibold text-[13px] text-indigo tracking-[0.2em] uppercase select-none">
           ALPHALINE
         </div>
@@ -98,7 +102,7 @@ export default function Home() {
       </header>
 
       {/* Main Content */}
-      <main className="w-full max-w-6xl flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24 my-auto z-10 py-12">
+      <main className="w-full max-w-6xl flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24 my-auto z-20 relative py-12">
         {/* Left column */}
         <div className="flex flex-col gap-6 text-center lg:text-left max-w-[500px]">
           <motion.div
@@ -217,7 +221,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full max-w-6xl flex justify-between items-center text-[10px] font-sans font-normal text-dim select-none z-10 pt-6 mt-auto border-t border-border-dark/20">
+      <footer className="w-full max-w-6xl flex justify-between items-center text-[10px] font-sans font-normal text-dim select-none z-20 relative pt-6 mt-auto border-t border-border-dark/20">
         <span>&copy; {new Date().getFullYear()} Alphaline Technologies</span>
         <span>Built for H0 Hackathon</span>
       </footer>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { useSidebar } from '@/components/SidebarProvider';
@@ -153,7 +154,21 @@ export default function AnalyzeTickerPage() {
       toast.dismiss(toastId);
 
       if (data.success && data.analysis) {
-        setAiAnalysis(data.analysis);
+        const text = data.analysis;
+        const parsed: Record<string, string> = {};
+        const patterns = [
+          { key: 'context', regex: /## MARKET CONTEXT[\s]*(.*?)(?=##|$)/s },
+          { key: 'technical', regex: /## TECHNICAL (?:ANALYSIS|OUTLOOK)[\s]*(.*?)(?=##|$)/s },
+          { key: 'setup', regex: /## TRADE SETUP[\s]*(.*?)(?=##|$)/s },
+          { key: 'institutional', regex: /## INSTITUTIONAL PERSPECTIVE[\s]*(.*?)(?=##|$)/s },
+          { key: 'risks', regex: /## RISK FACTORS[\s]*(.*?)(?=##|$)/s },
+          { key: 'verdict', regex: /## AI VERDICT[\s]*(.*?)$/s },
+        ];
+        patterns.forEach(({ key, regex }) => {
+          const match = text.match(regex);
+          if (match) parsed[key] = match[1].trim();
+        });
+        setAiAnalysis(parsed);
         toast.success("AI Technical analysis generated!");
       } else {
         throw new Error(data.error || "Malformed completions output");
@@ -452,9 +467,84 @@ export default function AnalyzeTickerPage() {
                 )}
 
                 {isAiLoading && (
-                  <div className="py-12 flex flex-col items-center justify-center space-y-4 select-none">
-                    <span className="w-8 h-8 rounded-full border-2 border-indigo border-t-transparent animate-spin" />
-                    <p className="text-[12px] text-muted font-sans font-medium animate-pulse">Analyzing market metrics &amp; sentiment...</p>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '48px 0',
+                    gap: 20,
+                  }}>
+                    <div style={{ position: 'relative', height: 60 }}>
+                      <motion.div
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          background: '#CF4647',
+                          position: 'absolute',
+                        }}
+                        animate={{
+                          x: [0, 80, 0],
+                          y: [0, -40, 0],
+                        }}
+                        transition={{
+                          duration: 1.2,
+                          repeat: Infinity,
+                          ease: [0.17, 0.67, 0.83, 0.67],
+                        }}
+                      />
+                      <svg width="120" height="60" style={{ position: 'absolute', top: 0, left: -20 }}>
+                        <path 
+                          d="M 0 50 L 40 20 L 80 50 L 120 20" 
+                          fill="none" 
+                          stroke="#1E2230" 
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <motion.p
+                        style={{
+                          fontFamily: 'var(--font-inter)',
+                          fontSize: 14,
+                          color: '#E2E8F0',
+                          marginBottom: 4,
+                        }}
+                        animate={{ opacity: [0.5, 1, 0.5] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      >
+                        Analyzing market data...
+                      </motion.p>
+                      <motion.div
+                        style={{
+                          display: 'flex',
+                          gap: 4,
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {['Reading news', 'Checking indicators', 'Generating signal'].map((step, i) => (
+                          <motion.span
+                            key={step}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: i * 0.8 }}
+                            style={{
+                              fontFamily: 'var(--font-inter)',
+                              fontSize: 11,
+                              color: '#374151',
+                              background: '#1C1F28',
+                              border: '1px solid #1E2230',
+                              borderRadius: 4,
+                              padding: '2px 8px',
+                            }}
+                          >
+                            {step}
+                          </motion.span>
+                        ))}
+                      </motion.div>
+                    </div>
                   </div>
                 )}
 
@@ -555,13 +645,23 @@ export default function AnalyzeTickerPage() {
                 )}
 
                 {/* Analyze trigger button */}
-                <button
-                  disabled={isAiLoading}
+                <motion.button
+                  className="glow-button"
                   onClick={handleAiAnalysis}
-                  className="w-full bg-[#6366F1] hover:bg-[#8183F4] disabled:opacity-50 text-white font-sans text-[13px] font-medium h-11 rounded-[6px] transition-colors flex items-center justify-center gap-1.5 mt-2 shadow-lg"
+                  disabled={isAiLoading}
+                  whileTap={{ scale: 0.97 }}
+                  style={{
+                    width: '100%', height: 44,
+                    color: 'white',
+                    fontFamily: 'var(--font-inter)',
+                    fontSize: 14, fontWeight: 500,
+                    background: '#6366F1',
+                    marginTop: 8,
+                    opacity: isAiLoading ? 0.5 : 1,
+                  }}
                 >
-                  {isAiLoading ? "Analyzing market dynamics..." : "Run AI Confluence Scan"}
-                </button>
+                  {isAiLoading ? 'Analyzing...' : '✦ Analyze with AI'}
+                </motion.button>
               </div>
             </div>
 

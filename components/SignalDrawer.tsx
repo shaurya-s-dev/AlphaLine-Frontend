@@ -84,11 +84,31 @@ export function SignalDrawer({ isOpen, onClose, signal }: SignalDrawerProps) {
             {/* Content Drawer Panel */}
             <Dialog.Content forceMount asChild>
               <motion.div
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
-                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                initial={{ 
+                  opacity: 0, 
+                  scale: 0.85,
+                  x: 60,
+                  y: 20
+                }}
+                animate={{ 
+                  opacity: 1, 
+                  scale: 1,
+                  x: 0,
+                  y: 0
+                }}
+                exit={{ 
+                  opacity: 0,
+                  scale: 0.9,
+                  x: 40
+                }}
+                transition={{ 
+                  type: "spring",
+                  damping: 28,
+                  stiffness: 320,
+                  mass: 0.8
+                }}
                 className="fixed right-0 top-0 bottom-0 w-full sm:w-[400px] bg-surface border-l border-border-dark p-6 z-50 flex flex-col justify-between overflow-y-auto text-frost font-sans shadow-2xl focus:outline-none"
+                style={{ transformOrigin: 'right center' }}
               >
                 <div>
                   {/* Header Row */}
