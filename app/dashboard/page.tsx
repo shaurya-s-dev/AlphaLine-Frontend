@@ -154,12 +154,18 @@ export default function DashboardPage() {
 
   // Fallback mock signals if API is empty or offline
   const fallbackMockSignals = [
-    { id: 'mock_1', ticker: 'RELIANCE.NS', market: 'NSE', signalType: 'BUY', confidence: 81, entry: 2847.50, stopLoss: 2790.00, target: 2960.00, timestamp: 'Just now' },
-    { id: 'mock_2', ticker: 'TCS.NS', market: 'NSE', signalType: 'SELL', confidence: 67, entry: 3850.00, stopLoss: 3920.00, target: 3710.00, timestamp: 'Just now' },
-    { id: 'mock_3', ticker: 'AAPL', market: 'US', signalType: 'BUY', confidence: 74, entry: 189.20, stopLoss: 185.00, target: 198.00, timestamp: 'Just now' },
-    { id: 'mock_4', ticker: 'INFY.NS', market: 'NSE', signalType: 'HOLD', confidence: 54, entry: 1420.00, stopLoss: 1450.00, target: 1360.00, timestamp: 'Just now' },
-    { id: 'mock_5', ticker: 'NVDA', market: 'US', signalType: 'BUY', confidence: 88, entry: 125.50, stopLoss: 120.00, target: 135.00, timestamp: 'Just now' },
-    { id: 'mock_6', ticker: 'HDFC.NS', market: 'NSE', signalType: 'SELL', confidence: 71, entry: 1650.00, stopLoss: 1680.00, target: 1590.00, timestamp: 'Just now' }
+    { id:'m1', ticker:'RELIANCE.NS', market:'NSE', signalType:'BUY', confidence:81, entry:2847.50, stopLoss:2790.00, target:2960.00, riskReward:2.1, timestamp:'2m ago' },
+    { id:'m2', ticker:'TCS.NS', market:'NSE', signalType:'SELL', confidence:67, entry:3850.00, stopLoss:3920.00, target:3710.00, riskReward:2.0, timestamp:'5m ago' },
+    { id:'m3', ticker:'AAPL', market:'US', signalType:'BUY', confidence:74, entry:189.20, stopLoss:185.00, target:198.00, riskReward:2.2, timestamp:'8m ago' },
+    { id:'m4', ticker:'NVDA', market:'US', signalType:'BUY', confidence:88, entry:125.50, stopLoss:120.00, target:135.00, riskReward:1.9, timestamp:'11m ago' },
+    { id:'m5', ticker:'INFY.NS', market:'NSE', signalType:'HOLD', confidence:54, entry:1420.00, stopLoss:1450.00, target:1360.00, riskReward:1.0, timestamp:'14m ago' },
+    { id:'m6', ticker:'MSFT', market:'US', signalType:'BUY', confidence:79, entry:415.00, stopLoss:406.00, target:432.00, riskReward:1.9, timestamp:'17m ago' },
+    { id:'m7', ticker:'HDFCBANK.NS', market:'NSE', signalType:'SELL', confidence:71, entry:1640.00, stopLoss:1695.00, target:1570.00, riskReward:1.3, timestamp:'21m ago' },
+    { id:'m8', ticker:'GOOGL', market:'US', signalType:'BUY', confidence:76, entry:172.50, stopLoss:168.00, target:181.00, riskReward:2.1, timestamp:'24m ago' },
+    { id:'m9', ticker:'WIPRO.NS', market:'NSE', signalType:'BUY', confidence:63, entry:458.00, stopLoss:448.00, target:475.00, riskReward:1.7, timestamp:'28m ago' },
+    { id:'m10', ticker:'TSLA', market:'US', signalType:'SELL', confidence:69, entry:248.00, stopLoss:258.00, target:232.00, riskReward:1.6, timestamp:'31m ago' },
+    { id:'m11', ticker:'ICICIBANK.NS', market:'NSE', signalType:'BUY', confidence:82, entry:1285.00, stopLoss:1260.00, target:1340.00, riskReward:2.2, timestamp:'35m ago' },
+    { id:'m12', ticker:'META', market:'US', signalType:'BUY', confidence:85, entry:582.00, stopLoss:568.00, target:608.00, riskReward:1.9, timestamp:'38m ago' },
   ];
 
   // Set page title tag on mount
