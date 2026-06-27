@@ -14,10 +14,11 @@ export default function HeatmapPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const indiaTickers = [
-    "RELIANCE.NS", "TCS.NS", "INFY.NS", "WIPRO.NS", "HDFCBANK.NS",
-    "ICICIBANK.NS", "SBIN.NS", "BAJFINANCE.NS", "HINDUNILVR.NS", "MARUTI.NS",
-    "SUNPHARMA.NS", "TATAMOTORS.BO", "ADANIENT.NS", "AXISBANK.NS", 
-    "KOTAKBANK.NS", "TITAN.NS"
+    "RELIANCE.NS", "TCS.NS", "INFY.NS", "WIPRO.NS",
+    "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", 
+    "BAJFINANCE.NS", "HINDUNILVR.NS", "MARUTI.NS",
+    "SUNPHARMA.NS", "TATAMOTORS.NS", "ADANIENT.NS", 
+    "AXISBANK.NS", "KOTAKBANK.NS", "TITAN.NS"
   ];
 
   const usTickers = [
@@ -88,8 +89,13 @@ export default function HeatmapPage() {
     };
   };
 
-  const findSignal = (baseTicker: string) => {
-    return signals.find(s => s.ticker.toUpperCase() === baseTicker.toUpperCase());
+  const findSignal = (ticker: string) => {
+    return signals.find(s => 
+      s.ticker === ticker || 
+      s.ticker === ticker + '.NS' ||
+      s.ticker.replace('.NS','').replace('.BO','') 
+        === ticker.replace('.NS','').replace('.BO','')
+    );
   };
 
   const handleTileClick = (ticker: string) => {

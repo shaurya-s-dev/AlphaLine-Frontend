@@ -102,6 +102,17 @@ export async function GET(request: Request) {
 
       const response = await docClient.send(new QueryCommand(queryParams));
       dbItems = response.Items || [];
+      
+      const tickerMap = new Map<string, any>();
+      dbItems.forEach(item => {
+        const ticker = item.PK?.replace(/^TICKER#/, '') || '';
+        const existing = tickerMap.get(ticker);
+        if (!existing || (item.SK || '') > (existing.SK || '')) {
+          tickerMap.set(ticker, item);
+        }
+      });
+      dbItems = Array.from(tickerMap.values());
+      dbItems.sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0));
     } else {
       // 2. SCAN table (cross-partition search for 'All' markets)
       const scanParams: any = {
@@ -121,6 +132,11 @@ export async function GET(request: Request) {
         expressionAttributeValues[":t"] = typeParam.toUpperCase();
       }
 
+      if (marketParam && marketParam.toLowerCase() !== 'all') {
+        filterConditions.push("market = :mkt");
+        expressionAttributeValues[":mkt"] = marketParam.toUpperCase();
+      }
+
       if (filterConditions.length > 0) {
         scanParams.FilterExpression = filterConditions.join(" AND ");
         scanParams.ExpressionAttributeValues = expressionAttributeValues;
@@ -130,7 +146,13 @@ export async function GET(request: Request) {
       dbItems = response.Items || [];
       
       const tickerMap = new Map<string, any>();
-      dbItems.forEach(item => { const t = item.PK?.replace(/^TICKER#/,'') || ''; if (!tickerMap.has(t) || item.SK > tickerMap.get(t).SK) tickerMap.set(t, item); });
+      dbItems.forEach(item => {
+        const ticker = item.PK?.replace(/^TICKER#/, '') || '';
+        const existing = tickerMap.get(ticker);
+        if (!existing || (item.SK || '') > (existing.SK || '')) {
+          tickerMap.set(ticker, item);
+        }
+      });
       dbItems = Array.from(tickerMap.values());
       dbItems.sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0));
     }
@@ -153,8 +175,8 @@ export async function GET(request: Request) {
       };
     });
 
-    // Limit to max 20 results
-    const limitedSignals = formattedSignals.slice(0, 20);
+    // Limit to max 50 results
+    const limitedSignals = formattedSignals.slice(0, 50);
 
     return NextResponse.json({ success: true, signals: limitedSignals });
   } catch (error: any) {

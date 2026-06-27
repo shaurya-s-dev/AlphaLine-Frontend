@@ -79,7 +79,6 @@ origins = [
     "https://localhost:3000",
     "https://alphaline-phi.vercel.app",
     "https://*.vercel.app",
-    "*"  # remove after hackathon
 ]
 frontend_url = os.environ.get("FRONTEND_URL")
 if frontend_url:
@@ -87,8 +86,8 @@ if frontend_url:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

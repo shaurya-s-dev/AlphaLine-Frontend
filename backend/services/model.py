@@ -27,8 +27,8 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     market = get_market(ticker)
     
     # Calculate a raw score between 0.0 and 1.0 representing bullishness.
-    # Center around 0.65 to naturally skew towards BUY (40%) and HOLD (40%) vs SELL (20%).
-    base_score = 0.65
+    # Center around 0.50 to naturally skew towards HOLD (40%) vs BUY (35%) and SELL (25%).
+    base_score = 0.50
     
     # Technical factor adjustments:
     # 1. RSI: lower RSI is bullish. range [15, 85] -> [+0.15, -0.15]
@@ -45,8 +45,8 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     vol_multiplier = min(1.5, max(0.8, volume_delta))
     
     # 5. Random normal variance to prevent identical scores for different stocks
-    # Mean=0, StdDev=0.25 (provides excellent variance across stocks)
-    noise = random.normalvariate(0, 0.25)
+    # Mean=0, StdDev=0.18
+    noise = random.normalvariate(0, 0.18)
     
     raw_score = base_score + rsi_factor + mom_factor + pos_factor + noise
     
@@ -60,21 +60,21 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     raw_score = max(0.01, min(0.99, raw_score))
     
     # Thresholds:
-    # score > 0.75 -> BUY (~40%)
-    # score < 0.35 -> SELL (~20%)
+    # score > 0.62 -> BUY (~35%)
+    # score < 0.38 -> SELL (~25%)
     # else -> HOLD (~40%)
-    if raw_score > 0.75:
+    if raw_score > 0.62:
         signal_type = "BUY"
-        # Map score [0.75, 0.99] to confidence percentage [76, 95]
-        confidence = int(75 + ((raw_score - 0.75) / 0.24) * 20)
-    elif raw_score < 0.35:
+        # Map score [0.62, 0.99] to confidence percentage [76, 95]
+        confidence = int(75 + ((raw_score - 0.62) / 0.37) * 20)
+    elif raw_score < 0.38:
         signal_type = "SELL"
-        # Map score [0.01, 0.35] to confidence percentage [51, 85] (lower score = stronger SELL)
-        confidence = int(50 + ((0.35 - raw_score) / 0.34) * 35)
+        # Map score [0.01, 0.38] to confidence percentage [51, 85] (lower score = stronger SELL)
+        confidence = int(50 + ((0.38 - raw_score) / 0.37) * 35)
     else:
         signal_type = "HOLD"
-        # Map score [0.35, 0.75] to confidence percentage [51, 75]
-        confidence = int(50 + (abs(raw_score - 0.55) / 0.2) * 25)
+        # Map score [0.38, 0.62] to confidence percentage [51, 75]
+        confidence = int(50 + (abs(raw_score - 0.50) / 0.12) * 25)
         
     confidence = max(51, min(95, confidence))
     
