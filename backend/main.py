@@ -33,15 +33,12 @@ from services.dynamo import write_signal
 load_dotenv()
 
 TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
-dynamodb = None
-
-def get_dynamodb_client():
-    return boto3.client(
-        'dynamodb',
-        region_name=os.environ.get('AWS_REGION', 'us-east-1'),
-        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-    )
+dynamodb = boto3.client(
+    'dynamodb',
+    region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+    aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+)
 
 # Initialize Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -277,7 +274,10 @@ def run_pipeline_for_ticker(ticker: str) -> dict:
 
         df = fetch_ohlcv(ticker, period="1mo", interval="15m")
         features = compute_features(df, ticker)
-        signal = generate_signal(ticker, features)
+        current_price = features.get('close', 0.0)
+        if current_price == 0:
+            current_price = features.get('price', 0.0)
+        signal = generate_signal(ticker=ticker, features=features, current_price=current_price)
         
         # Freshness Tracking metadata
         data_source = getattr(df, 'data_source', 'yfinance')
@@ -322,20 +322,28 @@ def run_batch_pipeline(tickers: List[str]) -> List[dict]:
 
 # Endpoints
 @app.get("/health")
-def health():
+async def health():
+    import boto3, os
     from services.model import MODEL_PATH
+
     try:
-        dynamodb.describe_table(TableName=TABLE_NAME)
+        client = boto3.client(
+            'dynamodb',
+            region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+        )
+        client.describe_table(TableName=os.environ.get('DYNAMODB_TABLE_NAME', 'alphaline-signals'))
         db = "healthy"
     except Exception as e:
-        db = f"error: {str(e)[:40]}"
+        db = f"error: {str(e)[:60]}"
 
     return {
         "status": "healthy" if db == "healthy" else "degraded",
         "database": db,
         "ml_model": "xgboost" if os.path.exists(MODEL_PATH) else "rule_based",
-        "region": os.environ.get("AWS_REGION", "us-east-1"),
-        "table": os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals"),
+        "region": os.environ.get("AWS_REGION"),
+        "table": os.environ.get("DYNAMODB_TABLE_NAME"),
         "version": "2.0.0"
     }
 
