@@ -1,153 +1,116 @@
-from datetime import datetime, timedelta
-import time
-import random
+import numpy as np
+import joblib
+import os
 import hashlib
-from models.signal import Signal
+from datetime import datetime
+from typing import Tuple
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'alphaline_model.pkl')
+_model = None
+
+
+def load_model():
+    global _model
+    if _model is None and os.path.exists(MODEL_PATH):
+        try:
+            _model = joblib.load(MODEL_PATH)
+            print("[ML] XGBoost model loaded")
+        except Exception as e:
+            print(f"[ML] Load error: {e}")
+    return _model
+
 
 def deterministic_offset(ticker: str) -> float:
-    """
-    Same ticker + same trading day = same signal.
-    Signal only changes when new data arrives.
-    """
     date_str = datetime.utcnow().strftime('%Y-%m-%d')
-    seed = hashlib.md5(
-        f"{ticker}{date_str}".encode()
-    ).hexdigest()
+    seed = hashlib.md5(f"{ticker}{date_str}".encode()).hexdigest()
     val = int(seed[:8], 16) / 0xFFFFFFFF
-    return (val - 0.5) * 0.08
+    return (val - 0.5) * 0.06
 
-def get_market(ticker: str) -> str:
-    """
-    Infers the market exchange (NSE, BSE, US) from the ticker format.
-    """
-    if ticker.endswith(".NS"):
-        return "NSE"
-    elif ticker.endswith(".BO"):
-        return "BSE"
-    else:
-        return "US"
 
-def generate_signal(ticker: str, features: dict) -> Signal:
-    """
-    Evaluates rule-based logic to trigger BUY/SELL/HOLD confluence signals.
-    """
-    rsi = features["rsi"]
-    volume_delta = features["volume_delta"]
-    momentum = features["momentum"]
-    price_position = features["price_position"]
-    current_price = features["current_price"]
-    
-    atr = features.get("atr", 0.02 * current_price)
-    macd = features.get("macd", 0.0)
-    macd_signal = features.get("macd_signal", 0.0)
-    macd_diff = features.get("macd_diff", 0.0)
-    bb_high = features.get("bb_high", current_price * 1.05)
-    bb_low = features.get("bb_low", current_price * 0.95)
-    bb_mid = features.get("bb_mid", current_price)
-    ema_9 = features.get("ema_9", current_price)
-    ema_21 = features.get("ema_21", current_price)
-    
-    market = get_market(ticker)
-    
-    # Calculate a raw score between 0.0 and 1.0 representing bullishness.
-    # Center around 0.50 to naturally skew towards HOLD (40%) vs BUY (35%) and SELL (25%).
-    base_score = 0.50
-    
-    # Technical factor adjustments:
-    # 1. RSI: lower RSI is bullish. range [15, 85] -> [+0.15, -0.15]
-    rsi_factor = (50.0 - rsi) * 0.005
-    
-    # 2. Momentum: positive is bullish. range [-0.05, 0.05] -> [-0.15, +0.15]
-    mom_factor = momentum * 3.0
-    mom_factor = max(-0.15, min(0.15, mom_factor))
-    
-    # 3. Price Position: lower (near 52w low) is bullish. range [0, 1] -> [+0.1, -0.1]
-    pos_factor = (0.5 - price_position) * 0.2
-    
-    # 4. Bollinger Bands factor: lower BB position is bullish. range [0, 1] -> [+0.08, -0.08]
-    bb_range = (bb_high - bb_low) if (bb_high > bb_low) else 1.0
-    bb_position = (current_price - bb_low) / bb_range
-    bb_factor = (0.5 - bb_position) * 0.16
-    
-    # 5. EMA Crossover factor: EMA 9 > EMA 21 (golden cross) is bullish. [+0.08, -0.08]
-    ema_factor = 0.08 if (ema_9 > ema_21) else -0.08
-    
-    # 6. MACD factor: MACD > signal or MACD diff > 0 is bullish. [+0.05, -0.05]
-    macd_factor = 0.05 if (macd > macd_signal or macd_diff > 0) else -0.05
-    
-    # 7. Volume Delta: higher volume amplifies standard variance/score shift
-    vol_multiplier = min(1.5, max(0.8, volume_delta))
-    
-    # 8. Deterministic offset based on ticker + date
+def predict_signal(features: dict, ticker: str) -> Tuple[str, int]:
+    model = load_model()
+
+    rsi = features.get('rsi', 50)
+    volume_delta = features.get('volume_delta', 1.0)
+    momentum = features.get('momentum', 0)
+    price_position = features.get('price_position', 0.5)
+    macd_signal = features.get('macd_signal', 0)
+    bb_position = features.get('bb_position', 0.5)
+    atr_pct = features.get('atr_pct', 0.02)
+
+    if model is not None:
+        try:
+            X = np.array([[rsi, volume_delta, momentum,
+                           price_position, macd_signal,
+                           bb_position, atr_pct]])
+            proba = model.predict_proba(X)[0]
+            pred = int(model.predict(X)[0])
+            signal_map = {0: 'HOLD', 1: 'BUY', 2: 'SELL'}
+            signal = signal_map.get(pred, 'HOLD')
+            confidence = int(max(proba) * 100)
+            noise = int(deterministic_offset(ticker) * 10)
+            confidence = max(51, min(92, confidence + noise))
+            print(f"[ML] {ticker}: {signal} {confidence}% (XGBoost)")
+            return signal, confidence
+        except Exception as e:
+            print(f"[ML] Inference error: {e}, using fallback")
+
+    # Rule-based fallback
     noise = deterministic_offset(ticker)
-    
-    raw_score = base_score + rsi_factor + mom_factor + pos_factor + bb_factor + ema_factor + macd_factor + noise
-    
-    # Apply volume scaling to push scores further away from center if high volume
-    if raw_score > 0.5:
-        raw_score = 0.5 + (raw_score - 0.5) * vol_multiplier
-    else:
-        raw_score = 0.5 - (0.5 - raw_score) * vol_multiplier
-        
-    # Clamp score
-    raw_score = max(0.01, min(0.99, raw_score))
-    
-    # Thresholds:
-    # BUY if raw_score > 0.58
-    # SELL if raw_score < 0.42
-    # HOLD otherwise
-    if raw_score > 0.58:
-        signal_type = "BUY"
-        # Map score [0.58, 0.99] to confidence percentage [75, 95]
-        confidence = int(75 + ((raw_score - 0.58) / 0.41) * 20)
-    elif raw_score < 0.42:
-        signal_type = "SELL"
-        # Map score [0.01, 0.42] to confidence percentage [50, 85] (lower score = stronger SELL)
-        confidence = int(50 + ((0.42 - raw_score) / 0.41) * 35)
-    else:
-        signal_type = "HOLD"
-        # Map score [0.42, 0.58] to confidence percentage [51, 75]
-        confidence = int(50 + (abs(raw_score - 0.50) / 0.08) * 25)
-        
-    confidence = max(51, min(95, confidence))
-    
-    # Levels calculation using ATR-based dynamic bounds
-    if signal_type == "BUY":
-        entry = current_price
-        stop_loss = max(0.01, entry - 2.0 * atr)
-        target = max(0.01, entry + 4.0 * atr)
-    elif signal_type == "SELL":
-        entry = current_price
-        stop_loss = max(0.01, entry + 2.0 * atr)
-        target = max(0.01, entry - 4.0 * atr)
-    else:
-        entry = current_price
-        stop_loss = max(0.01, entry - 1.0 * atr)
-        target = max(0.01, entry + 1.5 * atr)
+    bullish = sum([
+        rsi < 48,
+        volume_delta > 1.12,
+        momentum > 0.004,
+        price_position < 0.42,
+    ])
+    bearish = sum([
+        rsi > 57,
+        volume_delta > 1.12,
+        momentum < -0.004,
+        price_position > 0.68,
+    ])
 
-    # Round results to 2 decimal places
-    entry = round(entry, 2)
-    stop_loss = round(stop_loss, 2)
-    target = round(target, 2)
-    
-    # Calculate Risk-Reward Ratio
-    risk = abs(entry - stop_loss)
-    reward = abs(target - entry)
-    risk_reward = round(reward / risk, 2) if risk > 0 else 0.0
-    
-    # Create timestamps (24h TTL)
-    created_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    ttl = int(time.time() + 86400)
-    
-    return Signal(
-        ticker=ticker,
-        market=market,
-        signal_type=signal_type,
-        confidence_score=confidence,
-        entry_price=entry,
-        stop_loss=stop_loss,
-        target_price=target,
-        risk_reward=risk_reward,
-        ttl=ttl,
-        created_at=created_at
-    )
+    if bullish >= 2 and bullish > bearish:
+        signal = 'BUY'
+        conf = min(88, 52 + bullish * 9 + max(0, (50 - rsi) * 0.5) + noise * 100)
+    elif bearish >= 2 and bearish > bullish:
+        signal = 'SELL'
+        conf = min(88, 52 + bearish * 9 + max(0, (rsi - 50) * 0.5) + noise * 100)
+    else:
+        signal = 'HOLD'
+        conf = 46 + abs(noise * 80)
+
+    print(f"[ML] {ticker}: {signal} {int(conf)}% (rule-based fallback)")
+    return signal, max(51, min(88, int(conf)))
+
+
+def generate_signal(ticker: str, features: dict, current_price: float) -> dict:
+    signal, confidence = predict_signal(features, ticker)
+
+    atr = features.get('atr', current_price * 0.02)
+    atr = max(atr, current_price * 0.005)
+
+    if signal == 'BUY':
+        stop_loss = round(current_price - atr * 1.2, 2)
+        target = round(current_price + atr * 2.2, 2)
+    elif signal == 'SELL':
+        stop_loss = round(current_price + atr * 1.2, 2)
+        target = round(current_price - atr * 2.2, 2)
+    else:
+        stop_loss = round(current_price - atr * 1.5, 2)
+        target = round(current_price + atr * 1.5, 2)
+
+    sl_dist = abs(current_price - stop_loss)
+    tgt_dist = abs(target - current_price)
+    risk_reward = round(tgt_dist / sl_dist, 1) if sl_dist > 0 else 2.0
+
+    return {
+        'signal': signal,
+        'confidence': confidence,
+        'entry_price': current_price,
+        'stop_loss': stop_loss,
+        'target_price': target,
+        'risk_reward': risk_reward,
+        'model': 'xgboost' if load_model() else 'rule_based',
+        'features': features,
+    }

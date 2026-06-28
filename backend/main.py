@@ -98,7 +98,23 @@ def scheduled_signal_generation():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # ── ML Model: train on first boot if no .pkl exists ──────────────────
+    from services.train_model import train_and_save, MODEL_PATH as _MODEL_PATH
+    if not os.path.exists(_MODEL_PATH):
+        print("[Startup] No XGBoost model found — training now...")
+        try:
+            train_and_save()
+            print("[Startup] XGBoost model trained and saved")
+        except Exception as e:
+            print(f"[Startup] Training failed: {e} — rule-based fallback will be used")
+    else:
+        print("[Startup] XGBoost model found — skipping training")
+
+    # Load model into memory immediately
+    from services.model import load_model
+    load_model()
+
+    # ── Scheduler ─────────────────────────────────────────────────────────
     scheduler.add_job(
         scheduled_signal_generation,
         'interval',
@@ -106,20 +122,20 @@ async def lifespan(app: FastAPI):
         id='alphaline_seeding_job'
     )
     scheduler.start()
-    print("APScheduler background tasks initialized.")
-    
-    # Run immediate seeding on startup using the specified tickers
-    print(f"Running startup batch signal generation for tickers: {CORE_TICKERS}")
+    print("[Startup] APScheduler background tasks initialized.")
+
+    # Run immediate seeding on startup
+    print(f"[Startup] Running batch signal generation for {len(CORE_TICKERS)} tickers...")
     try:
         run_batch_pipeline(CORE_TICKERS)
-        print("Startup batch signal generation completed successfully.")
+        print("[Startup] Batch signal generation completed.")
     except Exception as e:
-        print(f"Error during startup signal seeding: {e}")
-        
+        print(f"[Startup] Error during signal seeding: {e}")
+
     yield
-    # Shutdown
+    # ── Shutdown ──────────────────────────────────────────────────────────
     scheduler.shutdown()
-    print("APScheduler shutdown completed.")
+    print("[Shutdown] APScheduler stopped.")
 
 app = FastAPI(
     title="Alphaline Signal Generation Engine",
@@ -292,10 +308,20 @@ def run_batch_pipeline(tickers: List[str]) -> List[dict]:
 # Endpoints
 @app.get("/health")
 def health():
+    from services.model import MODEL_PATH
+    try:
+        dynamodb.describe_table(TableName=TABLE_NAME)
+        db = "healthy"
+    except Exception as e:
+        db = f"error: {str(e)[:40]}"
+
     return {
-        "status": "healthy",
+        "status": "healthy" if db == "healthy" else "degraded",
+        "database": db,
+        "ml_model": "xgboost" if os.path.exists(MODEL_PATH) else "rule_based",
         "region": os.environ.get("AWS_REGION", "us-east-1"),
-        "table": os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
+        "table": os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals"),
+        "version": "2.0.0"
     }
 
 @app.post("/generate")
@@ -440,29 +466,59 @@ def get_latest_signal(ticker: str) -> dict:
     return {"signal": "HOLD", "confidence": 50}
 
 @app.get("/api/analyze/{ticker}")
-@limiter.limit("5/minute")
-async def deep_analyze(
-    ticker: str, 
-    request: Request,
-    background_tasks: BackgroundTasks,
-):
+@limiter.limit("10/minute")
+async def analyze_ticker(ticker: str, request: Request):
     """
-    Run TradingAgents multi-agent deep analysis.
-    Takes ~30-60 seconds. Returns structured report.
+    Run 3-agent AI analysis for a ticker.
+    Fetches latest signal from DynamoDB then
+    runs Technical + Sentiment + Strategist agents via Groq.
     """
-    import time
-    # Get latest signal from DynamoDB first
-    signal_data = get_latest_signal(ticker)
-    signal = signal_data.get("signal", "HOLD")
-    confidence = signal_data.get("confidence", 50)
-    
-    from services.trading_agents_service import (
-        run_trading_agents_analysis
-    )
+    # Get signal data from DynamoDB
+    try:
+        resp = dynamodb.query(
+            TableName=TABLE_NAME,
+            KeyConditionExpression="PK = :pk",
+            ExpressionAttributeValues={
+                ":pk": {"S": f"TICKER#{ticker}"}
+            },
+            ScanIndexForward=False,
+            Limit=1
+        )
+        items = resp.get("Items", [])
+        if not items:
+            raise HTTPException(404, "No signal found for this ticker")
+
+        item = items[0]
+        signal = item.get("signal", {}).get("S", "HOLD")
+        confidence = int(item.get("confidence", {}).get("N", "65"))
+        current_price = float(item.get("entry_price", {}).get("N", "0"))
+        stop_loss = float(item.get("stop_loss", {}).get("N", "0"))
+        target_price = float(item.get("target_price", {}).get("N", "0"))
+        risk_reward = float(item.get("risk_reward", {}).get("N", "2.0"))
+        market = item.get("market", {}).get("S", "US")
+        features = json.loads(
+            item.get("features", {}).get("S", "{}")
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"DynamoDB error: {str(e)[:60]}")
+
+    from services.ai_agents import run_full_analysis
     import asyncio
     try:
         result = await asyncio.wait_for(
-            run_trading_agents_analysis(ticker, signal, confidence),
+            run_full_analysis(
+                ticker=ticker,
+                market=market,
+                signal=signal,
+                confidence=confidence,
+                current_price=current_price,
+                stop_loss=stop_loss,
+                target_price=target_price,
+                risk_reward=risk_reward,
+                features=features,
+            ),
             timeout=120.0  # 2 minutes max
         )
     except asyncio.TimeoutError:
@@ -470,63 +526,57 @@ async def deep_analyze(
             status_code=504,
             detail="Analysis timed out. Try again."
         )
-    
-    # Write analysis result to DynamoDB with TTL 6hr
+
+    # Cache to DynamoDB with 6hr TTL
     if result.get("success"):
         try:
+            import time
+            from decimal import Decimal
+            analysis_date = datetime.utcnow().strftime("%Y-%m-%d")
+            ttl_val = int(time.time() + 21600)  # 6 hours
+
             region = os.environ.get("AWS_REGION", "us-east-1")
             table_name = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
-            dynamodb = boto3.resource("dynamodb", region_name=region)
-            table = dynamodb.Table(table_name)
-            
-            analysis_date = result.get("analysis_date")
-            ttl_val = int(time.time() + 21600) # 6 hours from now
-            
-            from decimal import Decimal
-            item = {
+            dynamo_resource = boto3.resource("dynamodb", region_name=region)
+            table = dynamo_resource.Table(table_name)
+
+            agents = result.get("agents", {})
+            cache_item = {
                 "PK": f"ANALYSIS#{ticker}",
                 "SK": f"ANALYSIS#{analysis_date}",
                 "ttl": Decimal(str(ttl_val)),
                 "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "ticker": ticker,
-                "ta_signal": result.get("ta_signal"),
-                "reasoning": result.get("reasoning"),
-                "risk_assessment": result.get("risk_assessment"),
-                "technical_report": result.get("technical_report"),
-                "sentiment_report": result.get("sentiment_report"),
-                "news_report": result.get("news_report"),
-                "alphaline_signal": result.get("alphaline_signal"),
-                "alphaline_confidence": Decimal(str(result.get("alphaline_confidence"))),
-                "agents_used": result.get("agents_used", [])
+                "signal": signal,
+                "confidence": Decimal(str(confidence)),
+                "technical_report": agents.get("technical", {}).get("report", ""),
+                "sentiment_report": agents.get("sentiment", {}).get("report", ""),
+                "strategist_report": agents.get("strategist", {}).get("report", ""),
+                "agents_used": Decimal(str(result.get("agents_used", 3))),
+                "model": result.get("model", "llama-3.1-8b-instant via Groq"),
             }
-            table.put_item(Item=item)
+            table.put_item(Item=cache_item)
         except Exception as ex:
-            print(f"Failed to cache analysis to DynamoDB: {ex}")
-            
+            print(f"[Cache] Failed to cache analysis: {ex}")
+
     return result
 
+
 @app.get("/api/analyze/{ticker}/cached")
-@limiter.limit("5/minute")
-async def deep_analyze_cached(
-    ticker: str, 
-    request: Request,
-    background_tasks: BackgroundTasks,
-):
+@limiter.limit("30/minute")
+async def analyze_ticker_cached(ticker: str, request: Request):
     """
-    Returns cached TradingAgents analysis if < 6 hours old,
+    Returns cached 3-agent analysis if < 6 hours old,
     otherwise triggers a fresh analysis.
     """
-    from services.trading_agents_service import get_analysis_date
-    analysis_date = get_analysis_date()
-    
-    # Query DynamoDB for cached analysis
+    analysis_date = datetime.utcnow().strftime("%Y-%m-%d")
+
     try:
         region = os.environ.get("AWS_REGION", "us-east-1")
         table_name = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
-        
-        dynamodb = boto3.resource("dynamodb", region_name=region)
-        table = dynamodb.Table(table_name)
-        
+        dynamo_resource = boto3.resource("dynamodb", region_name=region)
+        table = dynamo_resource.Table(table_name)
+
         response = table.get_item(
             Key={
                 "PK": f"ANALYSIS#{ticker}",
@@ -535,28 +585,37 @@ async def deep_analyze_cached(
         )
         item = response.get("Item")
         if item:
-            # Check if TTL is expired (since DynamoDB TTL doesn't delete immediately)
             import time
             ttl = int(item.get("ttl", 0))
             if ttl > int(time.time()):
-                # Format response fields
                 return {
                     "success": True,
                     "ticker": ticker,
-                    "ta_signal": item.get("ta_signal"),
-                    "reasoning": item.get("reasoning"),
-                    "risk_assessment": item.get("risk_assessment"),
-                    "technical_report": item.get("technical_report"),
-                    "sentiment_report": item.get("sentiment_report"),
-                    "news_report": item.get("news_report"),
-                    "alphaline_signal": item.get("alphaline_signal"),
-                    "alphaline_confidence": int(item.get("alphaline_confidence", 50)),
-                    "analysis_date": analysis_date,
-                    "agents_used": item.get("agents_used", []),
+                    "signal": item.get("signal", "HOLD"),
+                    "confidence": int(item.get("confidence", 65)),
+                    "agents": {
+                        "technical": {
+                            "name": "Technical Analyst",
+                            "report": item.get("technical_report", ""),
+                            "icon": "📊"
+                        },
+                        "sentiment": {
+                            "name": "Sentiment Analyst",
+                            "report": item.get("sentiment_report", ""),
+                            "icon": "🧠"
+                        },
+                        "strategist": {
+                            "name": "Chief Strategist",
+                            "report": item.get("strategist_report", ""),
+                            "icon": "⚡"
+                        }
+                    },
+                    "agents_used": int(item.get("agents_used", 3)),
+                    "model": item.get("model", "llama-3.1-8b-instant via Groq"),
                     "cached": True
                 }
     except Exception as e:
-        print(f"Error retrieving cached analysis from DynamoDB: {e}")
-        
-    # If not found or expired, trigger fresh analysis
-    return await deep_analyze(ticker, request, background_tasks)
+        print(f"[Cache] Error retrieving cached analysis: {e}")
+
+    # Not cached or expired — run fresh
+    return await analyze_ticker(ticker, request)
