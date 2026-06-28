@@ -32,13 +32,16 @@ from services.dynamo import write_signal
 
 load_dotenv()
 
-TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
+import os
+import boto3
+
 dynamodb = boto3.client(
     'dynamodb',
     region_name=os.environ.get('AWS_REGION', 'us-east-1'),
     aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
     aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
 )
+TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'alphaline-signals')
 
 # Initialize Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -274,10 +277,8 @@ def run_pipeline_for_ticker(ticker: str) -> dict:
 
         df = fetch_ohlcv(ticker, period="1mo", interval="15m")
         features = compute_features(df, ticker)
-        current_price = features.get('close', 0.0)
-        if current_price == 0:
-            current_price = features.get('price', 0.0)
-        signal = generate_signal(ticker=ticker, features=features, current_price=current_price)
+        current_price = features.get('close', features.get('price', 0.0))
+        signal = generate_signal(ticker, features, current_price)
         
         # Freshness Tracking metadata
         data_source = getattr(df, 'data_source', 'yfinance')
