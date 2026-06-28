@@ -31,6 +31,20 @@ export function RootClientWrapper({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+
+  useEffect(() => {
+    const seen = localStorage.getItem('alphaline_disclaimer_seen');
+    if (seen !== 'true') {
+      setShowDisclaimer(true);
+    }
+  }, []);
+
+  const dismissDisclaimer = () => {
+    localStorage.setItem('alphaline_disclaimer_seen', 'true');
+    setShowDisclaimer(false);
+  };
+
   // Keyboard listener for Cmd+K or Ctrl+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -76,6 +90,50 @@ export function RootClientWrapper({ children }: { children: React.ReactNode }) {
           }
         }}
       />
+
+      {showDisclaimer && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '90%',
+          maxWidth: 600,
+          background: '#111318',
+          border: '1px solid #1E2230',
+          borderRadius: 8,
+          padding: '16px 20px',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+          zIndex: 99999,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 16,
+          fontFamily: 'var(--font-inter)',
+          color: '#E2E8F0',
+        }}>
+          <div style={{ fontSize: 13, lineHeight: '1.5', textAlign: 'left' }}>
+            <span style={{ fontWeight: 'bold', color: '#6366F1' }}>Disclaimer:</span>{' '}
+            This is NOT financial advice. Alphaline provides AI-generated signals for educational purposes only. Always do your own research.
+          </div>
+          <button 
+            onClick={dismissDisclaimer}
+            style={{
+              background: '#6366F1',
+              color: 'white',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 500,
+              flexShrink: 0
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {children}
     </>

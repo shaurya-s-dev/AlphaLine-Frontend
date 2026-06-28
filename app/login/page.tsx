@@ -118,7 +118,12 @@ export default function LoginPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] text-muted tracking-wider uppercase font-medium">Password</label>
+              <div className="flex justify-between items-center">
+                <label className="text-[11px] text-muted tracking-wider uppercase font-medium">Password</label>
+                <Link href="/reset-password" className="text-[11px] text-[#6366F1] hover:underline font-sans">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative w-full">
                 <input
                   type={showPassword ? 'text' : 'password'}
