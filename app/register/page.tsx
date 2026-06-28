@@ -11,9 +11,30 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const router = useRouter();
   const supabase = createClient();
+
+  const resendEmail = async () => {
+    setError(null);
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`
+        }
+      });
+      if (resendError) {
+        setError(resendError.message);
+      } else {
+        setError('Confirmation email resent successfully!');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend confirmation email.');
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,19 +48,22 @@ export default function RegisterPage() {
     }
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/login`,
         },
       });
 
       if (signUpError) {
         setError(signUpError.message);
       } else {
-        router.push('/dashboard');
-        router.refresh();
+        if (data.user?.identities?.length === 0) {
+          setError('Account already exists');
+        } else {
+          setShowConfirmation(true);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred.');
@@ -56,63 +80,114 @@ export default function RegisterPage() {
           ALPHALINE
         </div>
 
-        {/* Card Form */}
-        <div className="w-full bg-surface border border-border-dark p-6 rounded-[6px]">
-          <h2 className="text-[16px] font-medium text-frost mb-4 font-sans leading-none text-center">Register</h2>
-          
-          <form onSubmit={handleRegister} className="space-y-4 font-sans">
-            <div>
-              <label className="block text-[11px] text-dim font-sans mb-1.5">Email Address</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@domain.com"
-                className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] focus:outline-none focus:border-indigo placeholder:text-dim"
-              />
+        {showConfirmation ? (
+          <div className="w-full bg-surface border border-border-dark p-6 rounded-[6px]" style={{ textAlign: 'center', padding: '40px 24px' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>
+              📬
             </div>
-
-            <div>
-              <label className="block text-[11px] text-dim font-sans mb-1.5">Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] focus:outline-none focus:border-indigo placeholder:text-dim"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-dim font-sans mb-1.5">Confirm Password</label>
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] focus:outline-none focus:border-indigo placeholder:text-dim"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-indigo text-white text-[13px] font-medium py-2 rounded-[6px] hover:bg-[#5254DE] transition-colors duration-150 leading-none mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'Creating account...' : 'Register'}
-            </button>
-          </form>
-
-          {/* Error Display */}
-          {error && (
-            <p className="text-sig-red text-[12px] font-medium mt-4 text-center leading-normal">
-              {error}
+            <h2 style={{ 
+              fontFamily: 'var(--font-dm-mono)',
+              color: '#E2E8F0', fontSize: 20 
+            }}>
+              Check your email
+            </h2>
+            <p style={{ 
+              color: '#6B7280', fontSize: 14,
+              marginTop: 8, maxWidth: 320,
+              marginLeft: 'auto', marginRight: 'auto',
+              lineHeight: '1.4'
+            }}>
+              We sent a confirmation link to {email}.
+              Click it to activate your account.
             </p>
-          )}
-        </div>
+            <p style={{ 
+              color: '#374151', fontSize: 12,
+              marginTop: 24 
+            }}>
+              Didn't get it? Check spam or{' '}
+              <button 
+                onClick={resendEmail}
+                style={{ 
+                  color: '#6366F1', 
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 12
+                }}
+              >
+                resend
+              </button>
+            </p>
+            {error && (
+              <p className="text-sig-green text-[12px] font-medium mt-4 text-center leading-normal">
+                {error}
+              </p>
+            )}
+            <div className="mt-6 text-center">
+              <Link href="/login" className="text-[12px] text-indigo hover:underline">
+                Back to Login
+              </Link>
+            </div>
+          </div>
+        ) : (
+          /* Card Form */
+          <div className="w-full bg-surface border border-border-dark p-6 rounded-[6px]">
+            <h2 className="text-[16px] font-medium text-frost mb-4 font-sans leading-none text-center">Register</h2>
+            
+            <form onSubmit={handleRegister} className="space-y-4 font-sans">
+              <div>
+                <label className="block text-[11px] text-dim font-sans mb-1.5">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@domain.com"
+                  className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] focus:outline-none focus:border-indigo placeholder:text-dim"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-dim font-sans mb-1.5">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] focus:outline-none focus:border-indigo placeholder:text-dim"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-dim font-sans mb-1.5">Confirm Password</label>
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-raised border border-border-dark text-[13px] text-frost p-2 rounded-[6px] focus:outline-none focus:border-indigo placeholder:text-dim"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-indigo text-white text-[13px] font-medium py-2 rounded-[6px] hover:bg-[#5254DE] transition-colors duration-150 leading-none mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? 'Creating account...' : 'Register'}
+              </button>
+            </form>
+
+            {/* Error Display */}
+            {error && (
+              <p className="text-sig-red text-[12px] font-medium mt-4 text-center leading-normal">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Bottom Link */}
         <p className="text-[12px] text-muted font-sans text-center leading-none">

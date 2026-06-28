@@ -786,6 +786,9 @@ function DashboardPageInner() {
                           stopLoss={signal.stopLoss}
                           target={signal.target}
                           timestamp={signal.timestamp}
+                          marketDate={signal.marketDate}
+                          isMarketOpen={signal.isMarketOpen}
+                          dataSource={signal.dataSource}
                           index={index}
                           previousConfidence={prevSignalsRef.current[signal.ticker]}
                           isWatched={watchlist.includes(signal.ticker)}
@@ -967,6 +970,9 @@ function DashboardPageInner() {
                         stopLoss={signal.stopLoss}
                         target={signal.target}
                         timestamp={signal.timestamp}
+                        marketDate={signal.marketDate}
+                        isMarketOpen={signal.isMarketOpen}
+                        dataSource={signal.dataSource}
                         index={index}
                         isWatched={true}
                         onWatchToggle={() => handleWatchlistToggle(ticker)}

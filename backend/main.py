@@ -1,13 +1,27 @@
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 import os
+
+sentry_sdk.init(
+    dsn=os.environ.get('SENTRY_DSN'),
+    integrations=[FastApiIntegration()],
+    traces_sample_rate=0.1,
+    environment=os.environ.get('ENV', 'production')
+)
+
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, validator
+from typing import List
 import boto3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from apscheduler.schedulers.background import BackgroundScheduler
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from services.market_data import fetch_ohlcv
 from services.features import compute_features
@@ -15,6 +29,9 @@ from services.model import generate_signal
 from services.dynamo import write_signal
 
 load_dotenv()
+
+# Initialize Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
 
 # Scheduler instance
 scheduler = BackgroundScheduler()
@@ -43,6 +60,36 @@ CORE_TICKERS = [
     "^NSEI", "^BSESN", "^NSEBANK", "^CNXIT", "^NDX", "^GSPC", "^DJI", "^VIX", "^INDIAVIX"
 ]
 
+ALLOWED_TICKERS = set(CORE_TICKERS)
+MAX_TICKERS_PER_REQUEST = 20
+
+# Input validation schemas
+class GenerateRequest(BaseModel):
+    ticker: str
+    
+    @validator('ticker')
+    def validate_ticker(cls, v):
+        if v not in ALLOWED_TICKERS:
+            raise ValueError(f'Invalid ticker: {v}')
+        return v
+
+class BatchGenerateRequest(BaseModel):
+    tickers: List[str]
+    
+    @validator('tickers')
+    def validate_tickers(cls, v):
+        if len(v) > MAX_TICKERS_PER_REQUEST:
+            raise ValueError(
+                f'Max {MAX_TICKERS_PER_REQUEST} tickers per request'
+            )
+        invalid = [t for t in v 
+                   if t not in ALLOWED_TICKERS]
+        if invalid:
+            raise ValueError(
+                f'Invalid tickers: {invalid}'
+            )
+        return v
+
 def scheduled_signal_generation():
     print("Executing scheduled batch signal generation...")
     run_batch_pipeline(CORE_TICKERS)
@@ -59,7 +106,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     print("APScheduler background tasks initialized.")
     
-    # Run immediate seeding on startup using the specified 35 tickers
+    # Run immediate seeding on startup using the specified tickers
     print(f"Running startup batch signal generation for tickers: {CORE_TICKERS}")
     try:
         run_batch_pipeline(CORE_TICKERS)
@@ -77,6 +124,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Attach rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS
 origins = [
@@ -96,13 +147,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Request schemas
-class GenerateRequest(BaseModel):
-    ticker: str
-
-class BatchGenerateRequest(BaseModel):
-    tickers: List[str]
 
 def check_recent_signal_exists(ticker: str) -> bool:
     """
@@ -140,6 +184,36 @@ def check_recent_signal_exists(ticker: str) -> bool:
         # If DynamoDB fails, return False to let signal pipeline proceed normally
         return False
 
+def check_is_market_open(market: str) -> bool:
+    """
+    Checks if market (NSE, BSE, US) is open.
+    """
+    now = datetime.now(timezone.utc)
+    
+    if market in ["NSE", "BSE"]:
+        # IST is UTC + 5:30
+        # Monday-Friday, 9:15 AM to 3:30 PM IST
+        ist = now + timedelta(hours=5, minutes=30)
+        day = ist.weekday()
+        if day >= 5: # Saturday/Sunday
+            return False
+        total_mins = ist.hour * 60 + ist.minute
+        # 9:15 AM is 555 mins, 3:30 PM is 930 mins
+        return 555 <= total_mins < 930
+        
+    elif market == "US":
+        # EST is UTC-5
+        # Monday-Friday, 9:30 AM to 4:00 PM EST
+        est = now - timedelta(hours=5)
+        day = est.weekday()
+        if day >= 5:
+            return False
+        total_mins = est.hour * 60 + est.minute
+        # 9:30 AM is 570 mins, 4:00 PM is 960 mins
+        return 570 <= total_mins < 960
+        
+    return False
+
 # Core pipeline
 def run_pipeline_for_ticker(ticker: str) -> dict:
     try:
@@ -156,7 +230,15 @@ def run_pipeline_for_ticker(ticker: str) -> dict:
         df = fetch_ohlcv(ticker, period="1mo", interval="15m")
         features = compute_features(df, ticker)
         signal = generate_signal(ticker, features)
-        success = write_signal(signal)
+        
+        # Freshness Tracking metadata
+        data_source = getattr(df, 'data_source', 'yfinance')
+        is_market_open = check_is_market_open(signal.market)
+        
+        from services.dynamo import get_last_trading_day
+        market_date = get_last_trading_day()
+
+        success = write_signal(signal, data_source=data_source, is_market_open=is_market_open)
 
         if not success:
             raise Exception("Failed to write item to DynamoDB table")
@@ -173,7 +255,10 @@ def run_pipeline_for_ticker(ticker: str) -> dict:
                 "stop_loss": signal.stop_loss,
                 "target_price": signal.target_price,
                 "risk_reward": signal.risk_reward,
-                "created_at": signal.created_at
+                "created_at": signal.created_at,
+                "market_date": market_date,
+                "is_market_open": is_market_open,
+                "data_source": data_source
             }
         }
     except Exception as e:
@@ -204,12 +289,15 @@ def generate_single_signal(payload: GenerateRequest):
     return result
 
 @app.post("/generate-batch")
-def generate_batch_signals(payload: BatchGenerateRequest):
+@limiter.limit("5/minute")
+def generate_batch_signals(request: Request, payload: BatchGenerateRequest):
     results = run_batch_pipeline(payload.tickers)
     return {"success": True, "results": results}
 
 @app.get("/signals")
+@limiter.limit("30/minute")
 def get_signals(
+    request: Request,
     market: str = "all",
     signal_type: str = "all",
     min_confidence: int = 0,
@@ -288,7 +376,10 @@ def get_signals(
                 "stop_loss": float(item.get("stop_loss", 0)),
                 "target_price": float(item.get("target_price", 0)),
                 "risk_reward": float(item.get("risk_reward", 0)),
-                "created_at": item.get("created_at", "")
+                "created_at": item.get("created_at", ""),
+                "market_date": item.get("market_date", ""),
+                "is_market_open": bool(item.get("is_market_open", False)),
+                "data_source": item.get("data_source", "yfinance")
             })
             
         # Limit to max results

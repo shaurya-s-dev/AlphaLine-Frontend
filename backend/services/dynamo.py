@@ -2,8 +2,23 @@ import boto3
 import os
 from decimal import Decimal
 from models.signal import Signal
+from datetime import datetime, timezone
 
-def write_signal(signal: Signal) -> bool:
+def get_last_trading_day() -> str:
+    """Returns last weekday date as string."""
+    now = datetime.now(timezone.utc)
+    day = now.weekday()
+    if day == 5:  # Saturday
+        delta = 1
+    elif day == 6:  # Sunday
+        delta = 2
+    else:
+        delta = 0
+    from datetime import timedelta
+    trading_day = now - timedelta(days=delta)
+    return trading_day.strftime('%Y-%m-%d')
+
+def write_signal(signal: Signal, data_source: str = "yfinance", is_market_open: bool = False) -> bool:
     """
     Writes a validated Signal object to the DynamoDB table.
     Converts numeric floats to Decimals as required by boto3.
@@ -28,7 +43,10 @@ def write_signal(signal: Signal) -> bool:
             "risk_reward": Decimal(str(signal.risk_reward)),
             "market": signal.market,
             "ttl": Decimal(str(signal.ttl)),
-            "created_at": signal.created_at
+            "created_at": signal.created_at,
+            "market_date": get_last_trading_day(),
+            "data_source": data_source,
+            "is_market_open": is_market_open
         }
         
         table.put_item(Item=item)

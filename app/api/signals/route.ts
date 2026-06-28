@@ -172,6 +172,9 @@ export async function GET(request: Request) {
         stopLoss: item.stop_loss ? parseFloat(item.stop_loss) : 0,
         target: item.target_price ? parseFloat(item.target_price) : 0,
         timestamp: item.created_at ? getRelativeTime(item.created_at) : "Just now",
+        marketDate: item.market_date || "",
+        isMarketOpen: item.is_market_open !== undefined ? Boolean(item.is_market_open) : false,
+        dataSource: item.data_source || "yfinance"
       };
     });
 

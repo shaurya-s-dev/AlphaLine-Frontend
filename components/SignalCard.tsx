@@ -44,6 +44,19 @@ function FlipNumber({ value }: { value: number }) {
   );
 }
 
+function formatMarketDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      return dateStr;
+    }
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch (e) {
+    return dateStr;
+  }
+}
+
 export interface SignalCardProps {
   ticker: string;
   market: string;
@@ -59,6 +72,9 @@ export interface SignalCardProps {
   previousConfidence?: number;
   isWatched?: boolean;
   onWatchToggle?: (e: React.MouseEvent) => void;
+  marketDate?: string;
+  isMarketOpen?: boolean;
+  dataSource?: string;
 }
 
 export function SignalCard({
@@ -76,6 +92,9 @@ export function SignalCard({
   previousConfidence,
   isWatched = false,
   onWatchToggle,
+  marketDate,
+  isMarketOpen: isMarketOpenFromDb,
+  dataSource
 }: SignalCardProps) {
   const [ageSeconds, setAgeSeconds] = useState(0);
 
@@ -335,20 +354,35 @@ export function SignalCard({
             <span className="font-mono text-[11px] font-normal text-dim leading-none">
               {formatAge(ageSeconds)}
               {(() => {
-                const market = isMarketOpen()
-                if (market === 'none') {
+                const currentMarketState = isMarketOpen();
+                if (currentMarketState !== 'none') {
                   return (
                     <span style={{
                       fontSize: 9,
-                      color: '#374151',
+                      color: '#22C55E',
                       fontFamily: 'var(--font-inter)',
                       marginLeft: 4,
+                      fontWeight: 'bold',
                     }}>
-                      · last close
+                      · Live
                     </span>
                   )
                 }
-                return null
+                
+                const dateLabel = marketDate 
+                  ? formatMarketDate(marketDate) 
+                  : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                
+                return (
+                  <span style={{
+                    fontSize: 9,
+                    color: '#374151',
+                    fontFamily: 'var(--font-inter)',
+                    marginLeft: 4,
+                  }}>
+                    · {dateLabel} data
+                  </span>
+                )
               })()}
             </span>
             {(() => {

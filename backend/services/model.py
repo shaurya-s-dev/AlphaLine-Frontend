@@ -1,7 +1,20 @@
 from datetime import datetime, timedelta
 import time
 import random
+import hashlib
 from models.signal import Signal
+
+def deterministic_offset(ticker: str, date: str) -> float:
+    """
+    Same ticker + same date always gives same offset.
+    Prevents signals changing on every refresh.
+    """
+    seed = hashlib.md5(
+        f"{ticker}{date}".encode()
+    ).hexdigest()
+    # Convert first 8 hex chars to float between -0.05 and 0.05
+    val = int(seed[:8], 16) / 0xFFFFFFFF
+    return (val - 0.5) * 0.10
 
 def get_market(ticker: str) -> str:
     """
@@ -65,9 +78,9 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     # 7. Volume Delta: higher volume amplifies standard variance/score shift
     vol_multiplier = min(1.5, max(0.8, volume_delta))
     
-    # 8. Random normal variance to prevent identical scores for different stocks
-    # Mean=0, StdDev=0.15
-    noise = random.normalvariate(0, 0.15)
+    # 8. Deterministic offset based on ticker + date
+    date_str = datetime.utcnow().strftime('%Y-%m-%d')
+    noise = deterministic_offset(ticker, date_str)
     
     raw_score = base_score + rsi_factor + mom_factor + pos_factor + bb_factor + ema_factor + macd_factor + noise
     
