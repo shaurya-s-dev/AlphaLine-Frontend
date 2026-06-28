@@ -174,7 +174,8 @@ export async function GET(request: Request) {
         timestamp: item.created_at ? getRelativeTime(item.created_at) : "Just now",
         marketDate: item.market_date || "",
         isMarketOpen: item.is_market_open !== undefined ? Boolean(item.is_market_open) : false,
-        dataSource: item.data_source || "yfinance"
+        dataSource: item.data_source || "yfinance",
+        createdAt: item.created_at || new Date().toISOString()
       };
     });
 

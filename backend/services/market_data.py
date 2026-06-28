@@ -49,14 +49,6 @@ def fetch_ohlcv_alphavantage(ticker: str) -> pd.DataFrame:
         df = pd.DataFrame(rows)
         df['date'] = pd.to_datetime(df['date'])
         df = df.sort_values('date').reset_index(drop=True)
-        df = df.rename(columns={
-            'open': 'Open',
-            'high': 'High',
-            'low': 'Low',
-            'close': 'Close',
-            'volume': 'Volume',
-            'date': 'Date'
-        })
         df.attrs['data_source'] = 'alphavantage'
         df.data_source = 'alphavantage'
         return df
@@ -102,14 +94,16 @@ def fetch_ohlcv(ticker: str, period="1mo", interval="15m", *args, **kwargs) -> p
         # Ensure 'Date' column is a column (reset index)
         if 'Date' not in data.columns and data.index.name == 'Date':
             data = data.reset_index()
+        elif 'date' not in data.columns and data.index.name == 'date':
+            data = data.reset_index()
         elif data.index.name == 'Date' or 'Date' not in data.columns:
             data = data.reset_index()
             
-        # Ensure columns match Capitalized case
+        # Ensure columns match lowercase case
         rename_dict = {}
         for c in data.columns:
             if c.lower() in ['open', 'high', 'low', 'close', 'volume', 'date']:
-                rename_dict[c] = c.lower().capitalize()
+                rename_dict[c] = c.lower()
         data = data.rename(columns=rename_dict)
         data.attrs['data_source'] = 'yfinance'
         data.data_source = 'yfinance'

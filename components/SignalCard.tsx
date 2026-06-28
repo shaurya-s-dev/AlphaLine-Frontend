@@ -57,6 +57,26 @@ function formatMarketDate(dateStr?: string): string {
   }
 }
 
+function isSignalExpired(timestamp?: string): boolean {
+  if (!timestamp) return false;
+  if (timestamp.includes('ago') || timestamp.toLowerCase() === 'just now') {
+    const matchHr = timestamp.match(/(\d+)\s*hr/i);
+    if (matchHr && parseInt(matchHr[1], 10) > 16) return true;
+    const matchDay = timestamp.match(/(\d+)\s*day/i);
+    if (matchDay) return true;
+    return false;
+  }
+  try {
+    const created = new Date(timestamp);
+    if (isNaN(created.getTime())) return false;
+    const now = new Date();
+    const hours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+    return hours > 16;
+  } catch (e) {
+    return false;
+  }
+}
+
 export interface SignalCardProps {
   ticker: string;
   market: string;
@@ -75,6 +95,7 @@ export interface SignalCardProps {
   marketDate?: string;
   isMarketOpen?: boolean;
   dataSource?: string;
+  createdAt?: string;
 }
 
 export function SignalCard({
@@ -94,7 +115,8 @@ export function SignalCard({
   onWatchToggle,
   marketDate,
   isMarketOpen: isMarketOpenFromDb,
-  dataSource
+  dataSource,
+  createdAt
 }: SignalCardProps) {
   const [ageSeconds, setAgeSeconds] = useState(0);
 
@@ -386,19 +408,58 @@ export function SignalCard({
               })()}
             </span>
             {(() => {
+              const expired = isSignalExpired(createdAt || timestamp);
+              if (expired) {
+                return (
+                  <span style={{
+                    fontSize: 10,
+                    color: '#F59E0B',
+                    fontFamily: 'var(--font-inter)',
+                    fontWeight: 'bold',
+                  }}>
+                    ⏰ Expired
+                  </span>
+                );
+              }
               const expiryDuration = 900; // 15 mins
               const remaining = Math.max(0, expiryDuration - ageSeconds);
+              if (remaining === 0) {
+                return (
+                  <span style={{
+                    fontSize: 10,
+                    color: '#F59E0B',
+                    fontFamily: 'var(--font-inter)',
+                    fontWeight: 'bold',
+                  }}>
+                    ⏰ Expired
+                  </span>
+                );
+              }
               const m = Math.floor(remaining / 60);
               const s = remaining % 60;
-              const text = remaining === 0 ? 'Expired' : `${m}m ${s}s left`;
               const colorClass = remaining > 300 ? 'text-[#6B7280]' : remaining > 60 ? 'text-[#F59E0B] animate-pulse' : 'text-[#EF4444] animate-pulse';
               return (
                 <span className={`font-mono text-[9px] font-bold leading-none ${colorClass}`}>
-                  ⏳ {text}
+                  ⏳ {m}m {s}s left
                 </span>
               );
             })()}
           </div>
+        </div>
+
+        {/* Legal Disclaimer */}
+        <div 
+          style={{ 
+            fontSize: 11, 
+            color: '#374151', 
+            fontFamily: 'var(--font-inter)',
+            marginTop: 10,
+            textAlign: 'center',
+            borderTop: '1px solid rgba(30, 34, 48, 0.4)',
+            paddingTop: 6
+          }}
+        >
+          Not financial advice
         </div>
       </div>
 

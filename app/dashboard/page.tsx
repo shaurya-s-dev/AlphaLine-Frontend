@@ -20,6 +20,27 @@ import { MarketCountdown } from '@/components/MarketCountdown';
 import { InfoPanel } from '@/components/InfoPanel';
 import { RangeSlider } from '@/components/RangeSlider';
 
+function isSignalExpired(createdAt?: string, timestamp?: string): boolean {
+  const ts = createdAt || timestamp;
+  if (!ts) return false;
+  if (ts.includes('ago') || ts.toLowerCase() === 'just now') {
+    const matchHr = ts.match(/(\d+)\s*hr/i);
+    if (matchHr && parseInt(matchHr[1], 10) > 16) return true;
+    const matchDay = ts.match(/(\d+)\s*day/i);
+    if (matchDay) return true;
+    return false;
+  }
+  try {
+    const created = new Date(ts);
+    if (isNaN(created.getTime())) return false;
+    const now = new Date();
+    const hours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+    return hours > 16;
+  } catch (e) {
+    return false;
+  }
+}
+
 const historicalOutcomes = [
   { ticker: "TCS.NS", type: "BUY", date: "2026-06-25", entry: 3850.00, target: 3960.00, sl: 3790.00, exit: 3960.00, outcome: "TARGET", pnl: 2.86 },
   { ticker: "RELIANCE.NS", type: "BUY", date: "2026-06-24", entry: 2920.00, target: 3010.00, sl: 2860.00, exit: 3010.00, outcome: "TARGET", pnl: 3.08 },
@@ -118,6 +139,7 @@ function DashboardPageInner() {
   const [watchlistSearch, setWatchlistSearch] = useState("");
   const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [showWeeklySummaryBanner, setShowWeeklySummaryBanner] = useState(false);
+  const [showExpired, setShowExpired] = useState(false);
 
   // Load watchlist on mount
   useEffect(() => {
@@ -368,7 +390,14 @@ function DashboardPageInner() {
       || (selectedMarket === 'BSE' 
           && sig.ticker.endsWith('.BO'));
     const matchesSearch = sig.ticker.toLowerCase().includes(search.toLowerCase());
-    return matchesMarket && matchesSearch && sig.confidence >= minConfidence;
+    const matchesConfidence = sig.confidence >= minConfidence;
+
+    // Filter expired signals if showExpired is false
+    if (!showExpired && isSignalExpired(sig.createdAt, sig.timestamp)) {
+      return false;
+    }
+
+    return matchesMarket && matchesSearch && matchesConfidence;
   });
 
   // Apply sorting parameter mapping
@@ -687,7 +716,32 @@ function DashboardPageInner() {
                   ))}
                 </div>
 
-
+                {/* Show Expired Signals Toggle */}
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[11px] text-muted uppercase tracking-wider font-semibold whitespace-nowrap">
+                    Show Expired
+                  </span>
+                  <button
+                    onClick={() => setShowExpired(!showExpired)}
+                    style={{ position: 'relative' }}
+                    className={`w-8 h-[18px] rounded-full transition-colors duration-200 focus:outline-none cursor-pointer flex items-center ${
+                      showExpired ? 'bg-[#6366F1]' : 'bg-[#1C1F28] border border-[#1E2230]'
+                    }`}
+                  >
+                    <motion.div
+                      layout
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        backgroundColor: 'white',
+                        position: 'absolute',
+                      }}
+                      animate={{ left: showExpired ? 16 : 2 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    />
+                  </button>
+                </div>
 
                 {/* Min Confidence Slider */}
                 <div className="flex items-center gap-4 w-full lg:w-auto max-w-[280px]">
@@ -789,6 +843,7 @@ function DashboardPageInner() {
                           marketDate={signal.marketDate}
                           isMarketOpen={signal.isMarketOpen}
                           dataSource={signal.dataSource}
+                          createdAt={signal.createdAt}
                           index={index}
                           previousConfidence={prevSignalsRef.current[signal.ticker]}
                           isWatched={watchlist.includes(signal.ticker)}
