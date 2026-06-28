@@ -396,3 +396,28 @@ def get_signals(
     except Exception as e:
         print(f"Error in GET /signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/analyze/{ticker}")
+@limiter.limit("3/minute")
+async def analyze_ticker(ticker: str, request: Request):
+    """
+    Run multi-agent TradingAgents analysis.
+    This takes 30-60 seconds — inform the frontend.
+    """
+    import asyncio
+    from services.trading_agents import run_trading_analysis
+    try:
+        # Run in thread pool to not block event loop
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, 
+            run_trading_analysis, 
+            ticker
+        )
+        return result
+    except Exception as e:
+        return {
+            "success": False, 
+            "error": str(e),
+            "ticker": ticker
+        }
