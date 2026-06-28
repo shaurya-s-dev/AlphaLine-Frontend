@@ -32,6 +32,17 @@ from services.dynamo import write_signal
 
 load_dotenv()
 
+TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
+dynamodb = None
+
+def get_dynamodb_client():
+    return boto3.client(
+        'dynamodb',
+        region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+        aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
+    )
+
 # Initialize Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 
@@ -48,6 +59,7 @@ CORE_TICKERS = [
     "DRREDDY.NS", "CIPLA.NS", "BRITANNIA.NS", "EICHERMOT.NS", "BAJAJFINSV.NS", 
     "TATASTEEL.NS", "JSWSTEEL.NS", "COALINDIA.NS", "ONGC.NS", "BPCL.NS", 
     "IOC.NS", "GRASIM.NS", "ADANIPORTS.NS", "INDUSINDBK.NS",
+    "TATAMOTORS.NS", "ADANIENT.NS", "LTIM.NS",
     # BSE (India)
     "TATASTEEL.BO", "TATAMOTORS.BO", "WIPRO.BO", "RELIANCE.BO", "TCS.BO", 
     "INFY.BO", "ICICIBANK.BO", "HDFCBANK.BO", "SBIN.BO", "BAJFINANCE.BO", 
@@ -98,6 +110,9 @@ def scheduled_signal_generation():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global dynamodb
+    dynamodb = get_dynamodb_client()
+
     # ── ML Model: train on first boot if no .pkl exists ──────────────────
     from services.train_model import train_and_save, MODEL_PATH as _MODEL_PATH
     if not os.path.exists(_MODEL_PATH):
