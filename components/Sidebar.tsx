@@ -8,6 +8,30 @@ import { X, LogOut, Menu, Settings, ChevronLeft, ChevronRight } from 'lucide-rea
 import { MarketCountdown } from '@/components/MarketCountdown';
 import { useSidebar } from '@/components/SidebarProvider';
 
+function getMarketOpenState(): { nse: boolean; us: boolean } {
+  const now = new Date()
+  
+  // NSE (IST): Monday-Friday, 9:15 AM to 3:30 PM (555 mins to 930 mins)
+  const ist = new Date(now.getTime() + 5.5*60*60*1000)
+  const istH = ist.getUTCHours()
+  const istM = ist.getUTCMinutes()
+  const istDay = ist.getUTCDay()
+  const istTotal = istH * 60 + istM
+  const nseOpen = istDay >= 1 && istDay <= 5 
+    && istTotal >= 555 && istTotal < 930
+
+  // US (EST): Monday-Friday, 9:30 AM to 4:00 PM (570 mins to 960 mins)
+  const est = new Date(now.getTime() - 5*60*60*1000)
+  const estH = est.getUTCHours()
+  const estM = est.getUTCMinutes()
+  const estDay = est.getUTCDay()
+  const estTotal = estH * 60 + estM
+  const usOpen = estDay >= 1 && estDay <= 5
+    && estTotal >= 570 && estTotal < 960
+
+  return { nse: nseOpen, us: usOpen }
+}
+
 export interface SidebarProps {
   activeTab?: string;
   setActiveTab?: (tab: string) => void;
@@ -252,8 +276,21 @@ export function Sidebar({
 
           {/* Market Status */}
           {!isCollapsedDesktop && (
-            <div className="px-2 py-3 border-t border-border-dark mb-3 select-none flex justify-center">
-              <MarketCountdown />
+            <div className="px-2 py-3 border-t border-border-dark mb-3 select-none flex justify-center text-[10px] font-sans text-muted">
+              {(() => {
+                const { nse, us } = getMarketOpenState();
+                return (
+                  <div className="flex items-center gap-1">
+                    <span>NSE</span>
+                    <span style={{ color: nse ? '#22C55E' : '#374151' }}>●</span>
+                    <span className="mr-1.5">{nse ? 'open' : 'closed'}</span>
+                    <span className="text-[#374151]">&middot;</span>
+                    <span className="ml-1.5">US</span>
+                    <span style={{ color: us ? '#22C55E' : '#374151' }}>●</span>
+                    <span>{us ? 'open' : 'closed'}</span>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

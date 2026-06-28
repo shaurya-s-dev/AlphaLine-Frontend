@@ -243,10 +243,14 @@ export default function SimulatorPage() {
       <main className={`flex-1 transition-all duration-300 ${collapsed ? 'md:pl-[64px]' : 'md:pl-[220px]'} px-4 pt-4 pb-24 md:pb-6 relative z-10 space-y-4 max-w-[1400px] w-full mx-auto`}>
 
         {/* ── MARKET INDICES STRIP ── */}
-        <div className="w-full overflow-x-auto scrollbar-none">
+        <div className="w-full overflow-x-auto index-bar-scroll">
           <div className="flex gap-2 min-w-max pb-1">
             {MARKET_INDICES.map((idx) => (
-              <div key={idx.label} className="flex items-center gap-2.5 bg-[#111318]/70 border border-border-dark rounded-[6px] px-3 py-2 min-w-[130px]">
+              <div 
+                key={idx.label} 
+                style={{ flexShrink: 0, padding: '10px 14px' }}
+                className="flex items-center gap-2.5 bg-[#111318] border border-[#1E2230] rounded-[6px] min-w-[140px]"
+              >
                 <div className="min-w-0">
                   <div className="text-[9px] text-muted uppercase tracking-wider font-semibold truncate">{idx.label}</div>
                   <div className="text-[13px] font-mono font-bold text-frost leading-none mt-0.5">

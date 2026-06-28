@@ -18,7 +18,7 @@ import { SignalDrawer } from '@/components/SignalDrawer';
 import { TickerTape } from '@/components/TickerTape';
 import { MarketCountdown } from '@/components/MarketCountdown';
 import { InfoPanel } from '@/components/InfoPanel';
-import * as Slider from '@radix-ui/react-slider';
+import { RangeSlider } from '@/components/RangeSlider';
 
 const historicalOutcomes = [
   { ticker: "TCS.NS", type: "BUY", date: "2026-06-25", entry: 3850.00, target: 3960.00, sl: 3790.00, exit: 3960.00, outcome: "TARGET", pnl: 2.86 },
@@ -694,22 +694,15 @@ function DashboardPageInner() {
                   <span className="text-[11px] text-muted uppercase tracking-wider font-semibold whitespace-nowrap">
                     Min Confidence: <span className="font-mono text-indigo font-bold">{minConfidence}%</span>
                   </span>
-                  <Slider.Root
-                    value={[minConfidence]}
-                    onValueChange={(val) => setMinConfidence(val[0])}
-                    min={50}
-                    max={95}
-                    step={5}
-                    className="relative flex items-center select-none touch-none w-32 h-5"
-                  >
-                    <Slider.Track className="bg-[#1C1F28] relative flex-grow rounded-full h-1 border border-border-dark">
-                      <Slider.Range className="absolute bg-[#6366F1] rounded-full h-full" />
-                    </Slider.Track>
-                    <Slider.Thumb 
-                      className="block w-3.5 h-3.5 bg-frost rounded-full hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo transition-colors cursor-pointer border border-[#111318]" 
-                      aria-label="Min Confidence"
+                  <div className="w-32">
+                    <RangeSlider
+                      min={0} max={95} step={5}
+                      value={minConfidence}
+                      onChange={setMinConfidence}
+                      color="#6366F1"
+                      formatValue={v => `${v}%`}
                     />
-                  </Slider.Root>
+                  </div>
                 </div>
               </div>
 

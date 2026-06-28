@@ -48,6 +48,21 @@ function CountUp({
   return <span className="font-mono">{current.toFixed(decimalPlaces)}{suffix}</span>;
 }
 
+function getWeekdayDate(daysAgo: number): string {
+  const date = new Date()
+  let count = 0
+  let current = new Date(date)
+  while (count < daysAgo) {
+    current.setDate(current.getDate() - 1)
+    const day = current.getDay()
+    if (day !== 0 && day !== 6) count++
+  }
+  return current.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short'
+  })
+}
+
 export default function BacktestPage() {
   const { collapsed } = useSidebar();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -413,7 +428,7 @@ export default function BacktestPage() {
                         <tbody className="divide-y divide-[#1E2230]/40 font-sans text-[12px] text-[#E2E8F0]">
                           {results.signals.map((trade: any, idx: number) => (
                             <tr key={trade.id || idx} className={`hover:bg-[#1C1F28]/30 ${idx % 2 === 0 ? 'bg-transparent' : 'bg-void/40'}`}>
-                              <td className="p-3 whitespace-nowrap">{trade.date}</td>
+                              <td className="p-3 whitespace-nowrap">{getWeekdayDate(idx + 1)}</td>
                               <td className="p-3 whitespace-nowrap font-medium">
                                 <span className={trade.signal === 'BUY' ? 'text-[#22C55E]' : 'text-[#EF4444]'}>{trade.signal}</span>
                               </td>
@@ -432,6 +447,20 @@ export default function BacktestPage() {
                     </div>
                   </div>
                 )}
+
+                <p style={{
+                  fontFamily: 'var(--font-inter)',
+                  fontSize: 11,
+                  color: '#374151',
+                  marginTop: 12,
+                  textAlign: 'center',
+                }}>
+                  * Simulated results based on historical 
+                  signal patterns. Past performance does 
+                  not guarantee future results. 
+                  Markets closed on weekends — 
+                  signals use last available close price.
+                </p>
 
               </div>
             ) : (

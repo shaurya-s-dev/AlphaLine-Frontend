@@ -7,6 +7,7 @@ import { Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { LayoutDashboard, Star, Activity, ShieldAlert, Terminal } from 'lucide-react';
 import { InfoPanel } from '@/components/InfoPanel';
+import { RangeSlider } from '@/components/RangeSlider';
 
 export default function RiskPage() {
   const { collapsed } = useSidebar();
@@ -243,15 +244,12 @@ export default function RiskPage() {
                 </span>
               </div>
               
-              <input
-                type="range"
-                min="1.0"
-                max="5.0"
-                step="0.5"
+              <RangeSlider
+                min={1.0} max={5.0} step={0.5}
                 value={riskPercent}
-                onChange={(e) => setRiskPercent(parseFloat(e.target.value))}
-                className="w-full h-1 bg-raised rounded-[6px] appearance-none cursor-pointer accent-indigo"
-                style={{ WebkitAppearance: 'none' }}
+                onChange={setRiskPercent}
+                color="#6366F1"
+                formatValue={v => `${v.toFixed(1)}%`}
               />
               
               <div className="flex justify-between text-[9px] text-muted font-mono leading-none">
@@ -270,15 +268,12 @@ export default function RiskPage() {
                 </span>
               </div>
               
-              <input
-                type="range"
-                min="1.0"
-                max="4.0"
-                step="0.5"
+              <RangeSlider
+                min={1.0} max={4.0} step={0.5}
                 value={atrMultiplier}
-                onChange={(e) => setAtrMultiplier(parseFloat(e.target.value))}
-                className="w-full h-1 bg-raised rounded-[6px] appearance-none cursor-pointer accent-indigo"
-                style={{ WebkitAppearance: 'none' }}
+                onChange={setAtrMultiplier}
+                color="#6366F1"
+                formatValue={v => `${v.toFixed(1)}x`}
               />
               
               <div className="flex justify-between text-[9px] text-muted font-mono leading-none">
@@ -313,7 +308,10 @@ export default function RiskPage() {
                 /* Loading Skeleton */
                 <div className="p-4 space-y-3 select-none">
                   {/* Header Skeleton */}
-                  <div className="grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-2 opacity-30">
+                  <div 
+                    style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 100px 80px 60px 100px', gap: 16 }}
+                    className="items-center px-4 py-2 opacity-30"
+                  >
                     <div className="h-3 bg-raised animate-pulse rounded-[4px] w-12" />
                     <div className="h-3 bg-raised animate-pulse rounded-[4px] w-8" />
                     <div className="h-3 bg-raised animate-pulse rounded-[4px] w-16 justify-self-end" />
@@ -326,7 +324,8 @@ export default function RiskPage() {
                   {[1, 2, 3].map((n) => (
                     <div 
                       key={n} 
-                      className="grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-3.5 border border-border-dark/30 rounded-[6px]"
+                      style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 100px 80px 60px 100px', gap: 16 }}
+                      className="items-center px-4 py-3.5 border border-border-dark/30 rounded-[6px]"
                     >
                       <div className="h-4 bg-raised animate-pulse rounded-[4px] w-16" />
                       <div className="h-4 bg-raised animate-pulse rounded-[4px] w-8 bg-emerald-500/10" />
@@ -344,13 +343,16 @@ export default function RiskPage() {
                 </div>
               ) : computedSignals.length > 0 ? (
                 /* CSS Grid layout fixed sizing columns */
-                <div className="overflow-x-auto">
-                  <div className="min-w-[800px] divide-y divide-[#1E2230]/50">
+                <div style={{ overflowX: 'auto' }}>
+                  <div style={{ minWidth: 700 }} className="divide-y divide-[#1E2230]/50">
                     {/* Header Row */}
-                    <div className="grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-3 bg-void">
+                    <div 
+                      style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 100px 80px 60px 100px', gap: 16 }}
+                      className="items-center px-4 py-3 bg-void"
+                    >
                       <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-left">Ticker</div>
                       <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-left">Signal</div>
-                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Entry</div>
+                      <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Entry+SL</div>
                       <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Alloc</div>
                       <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-right">Shares</div>
                       <div className="text-[11px] font-sans font-semibold text-[#94A3B8] uppercase tracking-wider text-center">R:R</div>
@@ -361,7 +363,8 @@ export default function RiskPage() {
                     {computedSignals.map((sig, idx) => (
                       <div
                         key={sig.id || idx}
-                        className={`grid grid-cols-[120px_70px_130px_100px_80px_60px_1fr] items-center gap-4 px-4 py-3.5 transition-colors duration-150 hover:bg-raised ${
+                        style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr 100px 80px 60px 100px', gap: 16 }}
+                        className={`items-center px-4 py-3.5 transition-colors duration-150 hover:bg-raised ${
                           idx % 2 === 0 ? 'bg-transparent' : 'bg-void/40'
                         }`}
                       >

@@ -5,6 +5,28 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Star, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
+function isMarketOpen(): 'nse' | 'us' | 'none' {
+  const now = new Date()
+  const ist = new Date(now.getTime() + 5.5*60*60*1000)
+  const istH = ist.getUTCHours()
+  const istM = ist.getUTCMinutes()
+  const istDay = ist.getUTCDay()
+  const istTotal = istH * 60 + istM
+  const nseOpen = istDay >= 1 && istDay <= 5 
+    && istTotal >= 555 && istTotal < 930
+
+  const est = new Date(now.getTime() - 5*60*60*1000)
+  const estH = est.getUTCHours()
+  const estM = est.getUTCMinutes()
+  const estDay = est.getUTCDay()
+  const estTotal = estH * 60 + estM
+  const usOpen = estDay >= 1 && estDay <= 5
+    && estTotal >= 570 && estTotal < 960
+
+  if (nseOpen || usOpen) return nseOpen ? 'nse' : 'us'
+  return 'none'
+}
+
 function FlipNumber({ value }: { value: number }) {
   return (
     <AnimatePresence mode="wait">
@@ -312,6 +334,22 @@ export function SignalCard({
           <div className="flex flex-col items-end gap-1 select-none">
             <span className="font-mono text-[11px] font-normal text-dim leading-none">
               {formatAge(ageSeconds)}
+              {(() => {
+                const market = isMarketOpen()
+                if (market === 'none') {
+                  return (
+                    <span style={{
+                      fontSize: 9,
+                      color: '#374151',
+                      fontFamily: 'var(--font-inter)',
+                      marginLeft: 4,
+                    }}>
+                      · last close
+                    </span>
+                  )
+                }
+                return null
+              })()}
             </span>
             {(() => {
               const expiryDuration = 900; // 15 mins
