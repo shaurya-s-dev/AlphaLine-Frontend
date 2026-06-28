@@ -10,7 +10,7 @@ sentry_sdk.init(
 )
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, validator
 from typing import List
@@ -397,27 +397,141 @@ def get_signals(
         print(f"Error in GET /signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/analyze/{ticker}")
-@limiter.limit("3/minute")
-async def analyze_ticker(ticker: str, request: Request):
-    """
-    Run multi-agent TradingAgents analysis.
-    This takes 30-60 seconds — inform the frontend.
-    """
-    import asyncio
-    from services.trading_agents import run_trading_analysis
+def get_latest_signal(ticker: str) -> dict:
     try:
-        # Run in thread pool to not block event loop
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, 
-            run_trading_analysis, 
-            ticker
+        region = os.environ.get("AWS_REGION", "us-east-1")
+        table_name = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
+        
+        dynamodb = boto3.resource("dynamodb", region_name=region)
+        table = dynamodb.Table(table_name)
+        
+        from boto3.dynamodb.conditions import Key
+        response = table.query(
+            KeyConditionExpression=Key('PK').eq(f"TICKER#{ticker}") & Key('SK').begins_with("SIGNAL#"),
+            ScanIndexForward=False,  # Descending by timestamp
+            Limit=1
         )
-        return result
+        items = response.get("Items", [])
+        if items:
+            item = items[0]
+            return {
+                "signal": item.get("signal_type", "HOLD"),
+                "confidence": int(item.get("confidence_score", 50))
+            }
     except Exception as e:
-        return {
-            "success": False, 
-            "error": str(e),
-            "ticker": ticker
-        }
+        print(f"Error getting latest signal from DynamoDB for {ticker}: {e}")
+    return {"signal": "HOLD", "confidence": 50}
+
+@app.get("/api/analyze/{ticker}")
+@limiter.limit("5/minute")
+async def deep_analyze(
+    ticker: str, 
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Run TradingAgents multi-agent deep analysis.
+    Takes ~30-60 seconds. Returns structured report.
+    """
+    import time
+    # Get latest signal from DynamoDB first
+    signal_data = get_latest_signal(ticker)
+    signal = signal_data.get("signal", "HOLD")
+    confidence = signal_data.get("confidence", 50)
+    
+    from services.trading_agents_service import (
+        run_trading_agents_analysis
+    )
+    result = await run_trading_agents_analysis(
+        ticker, signal, confidence
+    )
+    
+    # Write analysis result to DynamoDB with TTL 6hr
+    if result.get("success"):
+        try:
+            region = os.environ.get("AWS_REGION", "us-east-1")
+            table_name = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
+            dynamodb = boto3.resource("dynamodb", region_name=region)
+            table = dynamodb.Table(table_name)
+            
+            analysis_date = result.get("analysis_date")
+            ttl_val = int(time.time() + 21600) # 6 hours from now
+            
+            from decimal import Decimal
+            item = {
+                "PK": f"ANALYSIS#{ticker}",
+                "SK": f"ANALYSIS#{analysis_date}",
+                "ttl": Decimal(str(ttl_val)),
+                "created_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "ticker": ticker,
+                "ta_signal": result.get("ta_signal"),
+                "reasoning": result.get("reasoning"),
+                "risk_assessment": result.get("risk_assessment"),
+                "technical_report": result.get("technical_report"),
+                "sentiment_report": result.get("sentiment_report"),
+                "news_report": result.get("news_report"),
+                "alphaline_signal": result.get("alphaline_signal"),
+                "alphaline_confidence": Decimal(str(result.get("alphaline_confidence"))),
+                "agents_used": result.get("agents_used", [])
+            }
+            table.put_item(Item=item)
+        except Exception as ex:
+            print(f"Failed to cache analysis to DynamoDB: {ex}")
+            
+    return result
+
+@app.get("/api/analyze/{ticker}/cached")
+@limiter.limit("5/minute")
+async def deep_analyze_cached(
+    ticker: str, 
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Returns cached TradingAgents analysis if < 6 hours old,
+    otherwise triggers a fresh analysis.
+    """
+    from services.trading_agents_service import get_analysis_date
+    analysis_date = get_analysis_date()
+    
+    # Query DynamoDB for cached analysis
+    try:
+        region = os.environ.get("AWS_REGION", "us-east-1")
+        table_name = os.environ.get("DYNAMODB_TABLE_NAME", "alphaline-signals")
+        
+        dynamodb = boto3.resource("dynamodb", region_name=region)
+        table = dynamodb.Table(table_name)
+        
+        response = table.get_item(
+            Key={
+                "PK": f"ANALYSIS#{ticker}",
+                "SK": f"ANALYSIS#{analysis_date}"
+            }
+        )
+        item = response.get("Item")
+        if item:
+            # Check if TTL is expired (since DynamoDB TTL doesn't delete immediately)
+            import time
+            ttl = int(item.get("ttl", 0))
+            if ttl > int(time.time()):
+                # Format response fields
+                return {
+                    "success": True,
+                    "ticker": ticker,
+                    "ta_signal": item.get("ta_signal"),
+                    "reasoning": item.get("reasoning"),
+                    "risk_assessment": item.get("risk_assessment"),
+                    "technical_report": item.get("technical_report"),
+                    "sentiment_report": item.get("sentiment_report"),
+                    "news_report": item.get("news_report"),
+                    "alphaline_signal": item.get("alphaline_signal"),
+                    "alphaline_confidence": int(item.get("alphaline_confidence", 50)),
+                    "analysis_date": analysis_date,
+                    "agents_used": item.get("agents_used", []),
+                    "cached": True
+                }
+    except Exception as e:
+        print(f"Error retrieving cached analysis from DynamoDB: {e}")
+        
+    # If not found or expired, trigger fresh analysis
+    return await deep_analyze(ticker, request, background_tasks)

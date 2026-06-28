@@ -4,17 +4,17 @@ import random
 import hashlib
 from models.signal import Signal
 
-def deterministic_offset(ticker: str, date: str) -> float:
+def deterministic_offset(ticker: str) -> float:
     """
-    Same ticker + same date always gives same offset.
-    Prevents signals changing on every refresh.
+    Same ticker + same trading day = same signal.
+    Signal only changes when new data arrives.
     """
+    date_str = datetime.utcnow().strftime('%Y-%m-%d')
     seed = hashlib.md5(
-        f"{ticker}{date}".encode()
+        f"{ticker}{date_str}".encode()
     ).hexdigest()
-    # Convert first 8 hex chars to float between -0.05 and 0.05
     val = int(seed[:8], 16) / 0xFFFFFFFF
-    return (val - 0.5) * 0.10
+    return (val - 0.5) * 0.08
 
 def get_market(ticker: str) -> str:
     """
@@ -79,8 +79,7 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     vol_multiplier = min(1.5, max(0.8, volume_delta))
     
     # 8. Deterministic offset based on ticker + date
-    date_str = datetime.utcnow().strftime('%Y-%m-%d')
-    noise = deterministic_offset(ticker, date_str)
+    noise = deterministic_offset(ticker)
     
     raw_score = base_score + rsi_factor + mom_factor + pos_factor + bb_factor + ema_factor + macd_factor + noise
     
@@ -94,21 +93,21 @@ def generate_signal(ticker: str, features: dict) -> Signal:
     raw_score = max(0.01, min(0.99, raw_score))
     
     # Thresholds:
-    # score > 0.62 -> BUY (~35%)
-    # score < 0.38 -> SELL (~25%)
-    # else -> HOLD (~40%)
-    if raw_score > 0.62:
+    # BUY if raw_score > 0.58
+    # SELL if raw_score < 0.42
+    # HOLD otherwise
+    if raw_score > 0.58:
         signal_type = "BUY"
-        # Map score [0.62, 0.99] to confidence percentage [76, 95]
-        confidence = int(75 + ((raw_score - 0.62) / 0.37) * 20)
-    elif raw_score < 0.38:
+        # Map score [0.58, 0.99] to confidence percentage [75, 95]
+        confidence = int(75 + ((raw_score - 0.58) / 0.41) * 20)
+    elif raw_score < 0.42:
         signal_type = "SELL"
-        # Map score [0.01, 0.38] to confidence percentage [51, 85] (lower score = stronger SELL)
-        confidence = int(50 + ((0.38 - raw_score) / 0.37) * 35)
+        # Map score [0.01, 0.42] to confidence percentage [50, 85] (lower score = stronger SELL)
+        confidence = int(50 + ((0.42 - raw_score) / 0.41) * 35)
     else:
         signal_type = "HOLD"
-        # Map score [0.38, 0.62] to confidence percentage [51, 75]
-        confidence = int(50 + (abs(raw_score - 0.50) / 0.12) * 25)
+        # Map score [0.42, 0.58] to confidence percentage [51, 75]
+        confidence = int(50 + (abs(raw_score - 0.50) / 0.08) * 25)
         
     confidence = max(51, min(95, confidence))
     

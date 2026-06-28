@@ -33,6 +33,8 @@ export const metadata: Metadata = {
 export const dmMonoVariable = dmMono.variable;
 export const jetbrainsMonoVariable = jetbrainsMono.variable;
 
+import { DisclaimerBanner } from "@/components/DisclaimerBanner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -46,6 +48,7 @@ export default function RootLayout({
             <RootClientWrapper>
               {children}
             </RootClientWrapper>
+            <DisclaimerBanner />
           </SidebarProvider>
         </ThemeProvider>
       </body>

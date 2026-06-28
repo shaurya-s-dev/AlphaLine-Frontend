@@ -324,28 +324,23 @@ export default function AnalyzeTickerPage() {
       const data = await res.json();
       toast.dismiss(toastId);
 
-      if (data.success && data.decision) {
-        const decision = data.decision;
-        const state = data.state || {};
-        
+      if (data.success) {
         setAiAnalysis({
-          isTradingAgents: true,
-          action: decision.action || signalType,
-          confidence: decision.confidence || 'MEDIUM',
-          quantity: decision.quantity || 0,
-          reasoning: decision.reasoning || '',
-          risk_assessment: decision.risk_assessment || '',
-          price_target: decision.price_target || '',
-          
-          fundamentals: state.fundamentals || '',
-          sentiment: state.sentiment || '',
-          news: state.news || '',
-          technical: state.technical || '',
+          ta_signal: data.ta_signal,
+          reasoning: data.reasoning,
+          risk_assessment: data.risk_assessment,
+          technical_report: data.technical_report,
+          sentiment_report: data.sentiment_report,
+          news_report: data.news_report,
+          alphaline_signal: data.alphaline_signal,
+          alphaline_confidence: data.alphaline_confidence,
+          analysis_date: data.analysis_date,
+          agents_used: data.agents_used || [],
         });
         toast.success("AI Technical analysis generated!");
 
         // Trigger confetti for BUY signal
-        if (decision.action?.toUpperCase().includes('BUY')) {
+        if (data.ta_signal?.toUpperCase().includes('BUY')) {
           confetti({
             particleCount: 120,
             spread: 70,
@@ -360,17 +355,16 @@ export default function AnalyzeTickerPage() {
       toast.dismiss(toastId);
       
       setAiAnalysis({
-        isTradingAgents: true,
-        action: signalType,
-        confidence: 'HIGH',
-        quantity: 10,
+        ta_signal: signalType,
         reasoning: `Debate overview for ${ticker}:\n- Technical Analyst: Breaking out above key support levels with positive RSI indicators.\n- Sentiment Analyst: Positive news flow and active accumulation.\n- Fundamentals Analyst: Stable earnings guidance.`,
         risk_assessment: "Minor volatility expected around resistance levels. Risk controlled via stop loss.",
-        price_target: `₹${r1}`,
-        fundamentals: "Fundamentals reflect strong double-digit growth YoY.",
-        sentiment: "Social sentiment is predominantly bullish.",
-        news: "Recent block trades indicate institutional interest.",
-        technical: `RSI is currently stable at ${rsi}. Moving averages are trending upward.`
+        technical_report: `RSI is currently stable at ${rsi}. Moving averages are trending upward.`,
+        sentiment_report: "Social sentiment is predominantly bullish.",
+        news_report: "Recent block trades indicate institutional interest.",
+        alphaline_signal: signalType,
+        alphaline_confidence: confidence,
+        analysis_date: new Date().toISOString().split('T')[0],
+        agents_used: ["Technical Analyst", "Sentiment Analyst", "News Analyst", "Risk Manager", "Trader"]
       });
       toast.success("Fallback AI analysis loaded!");
 
@@ -666,190 +660,87 @@ export default function AnalyzeTickerPage() {
                 {aiAnalysis && (
                   <div className="space-y-4 overflow-y-auto max-h-[440px] pr-1">
                     
-                    {aiAnalysis.isTradingAgents ? (
-                      <>
-                        {/* TradingAgents Verdict Summary */}
-                        <div className="bg-[#1C1F28]/50 border border-border-dark p-5 rounded-[8px] text-center select-none animate-fade-in">
-                          <div className="text-[10px] text-muted uppercase tracking-widest font-semibold font-sans">AI MULTI-AGENT VERDICT</div>
-                          <div className={`text-[36px] font-mono font-black tracking-widest my-2 ${
-                            aiAnalysis.action.toUpperCase().includes('BUY') ? 'text-[#22C55E]' :
-                            aiAnalysis.action.toUpperCase().includes('SELL') ? 'text-[#EF4444]' :
-                            'text-[#F59E0B]'
-                          }`}>
-                            {aiAnalysis.action.toUpperCase()}
-                          </div>
-                          <div className="inline-flex gap-2 justify-center mb-3">
-                            <div className="px-3 py-0.5 bg-surface border border-border-dark rounded-full text-[10px] font-medium text-frost">
-                              Confidence: <span className="text-indigo font-bold">{aiAnalysis.confidence}</span>
-                            </div>
-                            {aiAnalysis.quantity > 0 && (
-                              <div className="px-3 py-0.5 bg-surface border border-border-dark rounded-full text-[10px] font-medium text-frost">
-                                Qty: <span className="text-indigo font-bold">{aiAnalysis.quantity}</span>
-                              </div>
-                            )}
-                          </div>
-                          {aiAnalysis.price_target && (
-                            <div className="text-[12px] text-frost font-mono mt-1 pt-2 border-t border-border-dark/30">
-                              Price Target: <span className="text-emerald-400 font-bold">{aiAnalysis.price_target}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 1. Reasoning Debate Debate */}
-                        {aiAnalysis.reasoning && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-2">
-                            <span className="text-[9px] text-[#6366F1] uppercase tracking-widest font-sans font-bold block border-b border-border-dark/30 pb-1">1. Agent Debate &amp; Reasoning</span>
-                            <div className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap max-h-[300px] overflow-y-auto pr-1">
-                              {aiAnalysis.reasoning}
-                            </div>
-                          </div>
+                    {/* SECTION 1: Agent Consensus */}
+                    <div className="bg-[#111318] border border-border-dark p-4 rounded-[8px] space-y-2.5 animate-fade-in">
+                      <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold block">1. Agent Consensus</span>
+                      <div className="flex justify-between items-center text-[12px] font-sans">
+                        <span className="text-[#94A3B8]">XGBoost: <strong className="text-frost">{aiAnalysis.alphaline_signal}</strong> ({aiAnalysis.alphaline_confidence}%)</span>
+                        <span className="text-[#94A3B8]">TradingAgents: <strong className="text-frost">{aiAnalysis.ta_signal}</strong></span>
+                      </div>
+                      <div className="pt-1.5 flex justify-center">
+                        {aiAnalysis.alphaline_signal === aiAnalysis.ta_signal ? (
+                          <span className="px-3 py-1 bg-[#22C55E]/15 border border-[#22C55E]/30 rounded-full text-[10px] font-brand font-bold text-[#22C55E] tracking-wider uppercase">
+                            ✓ High Conviction Consensus
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 bg-[#F59E0B]/15 border border-[#F59E0B]/30 rounded-full text-[10px] font-brand font-bold text-[#F59E0B] tracking-wider uppercase">
+                            ⚠ Conflicting Signals
+                          </span>
                         )}
+                      </div>
+                    </div>
 
-                        {/* 2. Risk Assessment */}
-                        {aiAnalysis.risk_assessment && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5 animate-fade-in">
-                            <span className="text-[9px] text-[#EF4444] uppercase tracking-widest font-sans font-bold block border-b border-[#EF4444]/20 pb-1">2. Risk Assessment</span>
-                            <div className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">
-                              {aiAnalysis.risk_assessment}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 3. Technical Report */}
-                        {aiAnalysis.technical && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold block border-b border-border-dark/30 pb-1">3. Technical Analyst Report</span>
-                            <div className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">
-                              {aiAnalysis.technical}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 4. Fundamentals Report */}
-                        {aiAnalysis.fundamentals && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold block border-b border-border-dark/30 pb-1">4. Fundamentals Analyst Report</span>
-                            <div className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">
-                              {aiAnalysis.fundamentals}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 5. Sentiment & News Reports */}
-                        {(aiAnalysis.sentiment || aiAnalysis.news) && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-2">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold block border-b border-border-dark/30 pb-1">5. Sentiment &amp; News Analysis</span>
-                            <div className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal space-y-3">
-                              {aiAnalysis.sentiment && (
-                                <div>
-                                  <strong className="text-frost text-[11px] uppercase tracking-wider block mb-0.5">Sentiment Pulse:</strong>
-                                  <div className="whitespace-pre-wrap text-muted">{aiAnalysis.sentiment}</div>
-                                </div>
-                              )}
-                              {aiAnalysis.news && (
-                                <div className="border-t border-border-dark/20 pt-2">
-                                  <strong className="text-frost text-[11px] uppercase tracking-wider block mb-0.5">News Context:</strong>
-                                  <div className="whitespace-pre-wrap text-muted">{aiAnalysis.news}</div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {/* Verdict Summary */}
-                        {verdictData && (
-                          <div className="bg-[#1C1F28]/50 border border-border-dark p-5 rounded-[8px] text-center select-none animate-fade-in">
-                            <div className="text-[10px] text-muted uppercase tracking-widest font-semibold font-sans">AI VERDICT SUMMARY</div>
-                            <div className={`text-[36px] font-brand font-black tracking-widest my-2 ${
-                              verdictData.signal.toUpperCase().includes('BUY') ? 'text-[#22C55E]' :
-                              verdictData.signal.toUpperCase().includes('SELL') ? 'text-[#EF4444]' :
-                              'text-[#F59E0B]'
-                            }`}>
-                              {verdictData.signal.toUpperCase()}
-                            </div>
-                            <div className="inline-block px-3 py-0.5 bg-surface border border-border-dark rounded-full text-[10px] font-medium text-frost mb-3">
-                              Conviction: <span className="text-indigo font-bold">{verdictData.conviction}</span> ({verdictData.confidence})
-                            </div>
-                            {verdictData.summary && (
-                              <p className="text-[12px] text-muted leading-relaxed font-sans font-normal border-t border-border-dark/50 pt-3">
-                                <Typewriter text={verdictData.summary.trim()} />
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Context card */}
-                        {aiAnalysis.context && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">1. Market Context</span>
-                            <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.context.replace(/#/g, '')}</p>
-                          </div>
-                        )}
-
-                        {/* Technical Outlook card */}
-                        {aiAnalysis.technical && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">2. Technical Analysis</span>
-                            <p className="text-[12.5px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.technical.replace(/#/g, '')}</p>
-                          </div>
-                        )}
-
-                        {/* Setup card with row styling */}
-                        {aiAnalysis.setup && (
-                          <div className="bg-[#1C1F28]/40 border border-[#1E2230] p-4 rounded-[8px] space-y-3">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold block border-b border-border-dark pb-1.5">3. Proposed Trade Setup</span>
-                            <div className="space-y-1.5">
-                              {aiAnalysis.setup.split('\n').filter((l: string) => l.trim() !== '').map((line: string, i: number) => {
-                                const parts = line.split(':');
-                                if (parts.length >= 2) {
-                                  const label = parts[0].replace(/-\s+/, '').replace(/\*\*/g, '').trim();
-                                  const val = parts.slice(1).join(':').replace(/\*\*/g, '').trim();
-                                  
-                                  let valColor = 'text-frost';
-                                  if (label.toLowerCase().includes('entry')) valColor = 'text-[#6366F1] font-mono';
-                                  else if (label.toLowerCase().includes('stop loss') || label.toLowerCase().includes('stoploss') || label.toLowerCase().includes('sl')) valColor = 'text-[#EF4444] font-mono';
-                                  else if (label.toLowerCase().includes('target 1')) valColor = 'text-[#22C55E]/70 font-mono';
-                                  else if (label.toLowerCase().includes('target 2')) valColor = 'text-[#22C55E]/85 font-mono';
-                                  else if (label.toLowerCase().includes('target 3')) valColor = 'text-[#22C55E] font-mono';
-                                  else if (label.toLowerCase().includes('risk/reward') || label.toLowerCase().includes('reward')) valColor = 'text-[#E2E8F0] font-mono';
-
-                                  return (
-                                    <div key={i} className="flex justify-between py-1 border-b border-border-dark/20 text-[12px] last:border-b-0">
-                                      <span className="text-muted font-sans">{label}</span>
-                                      <span className={`${valColor} font-bold`}>{val}</span>
-                                    </div>
-                                  );
-                                }
-                                return (
-                                  <div key={i} className="text-[12px] text-muted font-sans py-0.5">
-                                    {line.replace(/-\s+/, '').replace(/#/g, '')}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Institutional Perspective card */}
-                        {aiAnalysis.institutional && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">4. Institutional Perspective</span>
-                            <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.institutional.replace(/#/g, '')}</p>
-                          </div>
-                        )}
-
-                        {/* Risk Factors card */}
-                        {aiAnalysis.risks && (
-                          <div className="bg-[#1C1F28]/40 border border-border-dark p-4 rounded-[8px] space-y-1.5">
-                            <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold">5. Core Risk Factors</span>
-                            <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.risks.replace(/#/g, '')}</p>
-                          </div>
-                        )}
-                      </>
+                    {/* SECTION 2: Technical Analysis */}
+                    {aiAnalysis.technical_report && (
+                      <div className="bg-[#111318] border-l-2 border-[#6366F1] border-y border-r border-border-dark p-4 rounded-r-[8px] space-y-1.5 animate-fade-in">
+                        <span className="text-[9px] text-[#6366F1] uppercase tracking-widest font-sans font-bold block">2. Technical Analysis</span>
+                        <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.technical_report}</p>
+                      </div>
                     )}
-                    
+
+                    {/* SECTION 3: Market Sentiment */}
+                    {(aiAnalysis.sentiment_report || aiAnalysis.news_report) && (
+                      <div className="bg-[#111318] border-l-2 border-[#22C55E] border-y border-r border-border-dark p-4 rounded-r-[8px] space-y-2.5 animate-fade-in">
+                        <span className="text-[9px] text-[#22C55E] uppercase tracking-widest font-sans font-bold block">3. Market Sentiment</span>
+                        {aiAnalysis.sentiment_report && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-muted font-sans font-medium uppercase tracking-wider block">Sentiment Stream:</span>
+                            <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.sentiment_report}</p>
+                          </div>
+                        )}
+                        {aiAnalysis.news_report && (
+                          <div className="space-y-1 border-t border-[#1E2230]/40 pt-2">
+                            <span className="text-[10px] text-muted font-sans font-medium uppercase tracking-wider block">News Analysis:</span>
+                            <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.news_report}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* SECTION 4: Trade Decision */}
+                    <div className="bg-[#111318] border border-border-dark p-4 rounded-[8px] space-y-4 animate-fade-in">
+                      <div className="text-center pb-2 border-b border-[#1E2230]/40">
+                        <span className="text-[9px] text-muted uppercase tracking-widest font-sans font-bold block mb-1">4. Trade Decision</span>
+                        <span className={`text-[32px] font-brand font-black tracking-widest ${
+                          aiAnalysis.ta_signal.toUpperCase().includes('BUY') ? 'text-[#22C55E]' :
+                          aiAnalysis.ta_signal.toUpperCase().includes('SELL') ? 'text-[#EF4444]' :
+                          'text-[#F59E0B]'
+                        }`}>
+                          {aiAnalysis.ta_signal}
+                        </span>
+                      </div>
+                      
+                      {aiAnalysis.reasoning && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] text-[#6366F1] font-sans font-semibold uppercase tracking-wider block">Reasoning:</span>
+                          <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.reasoning}</p>
+                        </div>
+                      )}
+
+                      {aiAnalysis.risk_assessment && (
+                        <div className="space-y-1 border-t border-[#1E2230]/40 pt-3">
+                          <span className="text-[10px] text-[#EF4444] font-sans font-semibold uppercase tracking-wider block">Risk Management:</span>
+                          <p className="text-[12px] text-[#E2E8F0] leading-relaxed font-sans font-normal whitespace-pre-wrap">{aiAnalysis.risk_assessment}</p>
+                        </div>
+                      )}
+                      
+                      <div className="pt-2 border-t border-[#1E2230]/40 text-center select-none">
+                        <span className="text-[9.5px] text-muted font-sans font-normal">
+                          ✦ Powered by 6 AI Agents
+                        </span>
+                      </div>
+                    </div>
+
                   </div>
                 )}
 

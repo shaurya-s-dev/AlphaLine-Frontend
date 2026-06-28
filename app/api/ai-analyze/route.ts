@@ -14,17 +14,17 @@ export async function POST(req: NextRequest) {
       90000  // 90 second timeout
     );
     
-    // Build the request URL robustly
+    // Build the request URL robustly pointing to the new GET api/analyze/{ticker} endpoint
     const url = backendUrl.startsWith('http')
-      ? `${backendUrl}/analyze/${ticker}`
-      : `http://${backendUrl}/analyze/${ticker}`;
+      ? `${backendUrl}/api/analyze/${ticker}`
+      : `http://${backendUrl}/api/analyze/${ticker}`;
 
     console.log(`Routing AI Analysis proxy call to: ${url}`);
 
     const res = await fetch(
       url,
       {
-        method: 'POST',
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
       }

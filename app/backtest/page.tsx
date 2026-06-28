@@ -452,14 +452,14 @@ export default function BacktestPage() {
                   fontFamily: 'var(--font-inter)',
                   fontSize: 11,
                   color: '#374151',
-                  marginTop: 12,
+                  marginTop: 16,
                   textAlign: 'center',
+                  lineHeight: 1.6,
                 }}>
-                  * Simulated results based on historical 
-                  signal patterns. Past performance does 
-                  not guarantee future results. 
-                  Markets closed on weekends — 
-                  signals use last available close price.
+                  * Simulated results based on AI signal patterns. 
+                  Past performance does not guarantee future results.
+                  Markets are closed on weekends — signals use 
+                  last available close price.
                 </p>
 
               </div>

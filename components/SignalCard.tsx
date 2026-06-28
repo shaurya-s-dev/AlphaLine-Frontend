@@ -27,6 +27,31 @@ function isMarketOpen(): 'nse' | 'us' | 'none' {
   return 'none'
 }
 
+function getMarketStatus(): 'live' | 'closed' {
+  const now = new Date()
+  const ist = new Date(
+    now.getTime() + (5.5 * 60 * 60 * 1000)
+  )
+  const istH = ist.getUTCHours()
+  const istM = ist.getUTCMinutes()
+  const istDay = ist.getUTCDay()
+  const istTotal = istH * 60 + istM
+  const nseOpen = istDay >= 1 && istDay <= 5 
+    && istTotal >= 555 && istTotal < 930
+
+  const est = new Date(
+    now.getTime() - (5 * 60 * 60 * 1000)
+  )
+  const estH = est.getUTCHours()
+  const estM = est.getUTCMinutes()
+  const estDay = est.getUTCDay()
+  const estTotal = estH * 60 + estM
+  const usOpen = estDay >= 1 && estDay <= 5
+    && estTotal >= 570 && estTotal < 960
+
+  return (nseOpen || usOpen) ? 'live' : 'closed'
+}
+
 function FlipNumber({ value }: { value: number }) {
   return (
     <AnimatePresence mode="wait">
@@ -407,6 +432,17 @@ export function SignalCard({
                 )
               })()}
             </span>
+            {getMarketStatus() === 'closed' && (
+              <span style={{
+                fontSize: 9,
+                color: '#374151',
+                fontFamily: 'var(--font-inter)',
+                marginLeft: 4,
+                fontStyle: 'italic',
+              }}>
+                · last close
+              </span>
+            )}
             {(() => {
               const expired = isSignalExpired(createdAt || timestamp);
               if (expired) {
