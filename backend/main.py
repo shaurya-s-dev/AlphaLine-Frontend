@@ -12,6 +12,8 @@ sentry_sdk.init(
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, validator
 from typing import List
 import boto3
@@ -129,24 +131,39 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS
-origins = [
-    "http://localhost:3000",
-    "https://localhost:3000",
+# CORS — lock it to actual domains
+ALLOWED_ORIGINS = [
     "https://alphaline-phi.vercel.app",
-    "https://*.vercel.app",
+    "http://localhost:3000",  # dev only
 ]
 frontend_url = os.environ.get("FRONTEND_URL")
-if frontend_url:
-    origins.append(frontend_url)
+if frontend_url and frontend_url not in ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS.append(frontend_url)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+# Exception handlers
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    print(f"[Error] {type(exc).__name__}: {exc}")  # log it
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error", "detail": str(type(exc).__name__)}
+        # Never return str(exc) — leaks internal paths/secrets
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={"error": "Invalid request", "detail": str(exc.errors())}
+    )
 
 def check_recent_signal_exists(ticker: str) -> bool:
     """
@@ -442,9 +459,17 @@ async def deep_analyze(
     from services.trading_agents_service import (
         run_trading_agents_analysis
     )
-    result = await run_trading_agents_analysis(
-        ticker, signal, confidence
-    )
+    import asyncio
+    try:
+        result = await asyncio.wait_for(
+            run_trading_agents_analysis(ticker, signal, confidence),
+            timeout=120.0  # 2 minutes max
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="Analysis timed out. Try again."
+        )
     
     # Write analysis result to DynamoDB with TTL 6hr
     if result.get("success"):
